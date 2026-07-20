@@ -1,0 +1,22 @@
+// Stage 7a — Clinical pipeline with FHIR JSON output.
+// Look for: *.json FHIR resources under outputDir.
+
+set WriteBanner=yes
+
+load FullTokenizerPipeline
+add ContextDependentTokenizerAnnotator
+addDescription POSTagger
+load ChunkerSubPipe
+
+load org/apache/ctakes/examples/pipeline/explore/NoUmlsDictionary
+load AttributeCleartkSubPipe
+load RelationSubPipe
+load TemporalSubPipe
+
+package org.apache.ctakes.fhir.cc
+set WriteNlpFhir=true
+add FhirJsonFileWriter
+
+writeXmis
+writeHtml
+addLast util.log.FinishedLogger

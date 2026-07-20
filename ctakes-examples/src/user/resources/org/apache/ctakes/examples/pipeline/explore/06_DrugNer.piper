@@ -1,0 +1,10 @@
+// Stage 6a — Drug NER via ExploreDrugNerRunner (loads DrugMentionAnnotator.xml).
+// Prefer: mvn -pl ctakes-examples exec:exec -DrunExploreDrug
+//          -Dexplore.input=... -Dexplore.output=...
+// This piper alone is documentation; XML array params require the Java runner.
+
+set WriteBanner=yes
+load org/apache/ctakes/examples/pipeline/explore/06_DrugNerBase
+writeXmis
+writeHtml
+addLast util.log.FinishedLogger

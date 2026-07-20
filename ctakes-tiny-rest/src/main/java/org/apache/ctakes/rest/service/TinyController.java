@@ -73,6 +73,7 @@ public class TinyController {
          case "umls" -> RestPipelineRunner.getInstance().process( new UmlsJsonFormatter(), text );
          case "cui" -> RestPipelineRunner.getInstance().process( new CuiListFormatter(), text );
          case "xmi" -> RestPipelineRunner.getInstance().process( new XmiFormatter(), text );
+         case "handover" -> RestPipelineRunner.getInstance().process( new HandoverJsonFormatter(), text );
          default -> RestPipelineRunner.getInstance().process( new FhirJsonFormatter(), text );
       };
    }

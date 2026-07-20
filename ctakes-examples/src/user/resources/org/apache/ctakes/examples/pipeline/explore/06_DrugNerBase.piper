@@ -1,0 +1,11 @@
+// Base clinical steps for ExploreDrugNerRunner (DrugMentionAnnotator.xml added in Java).
+
+set WriteBanner=yes
+
+load DefaultTokenizerPipeline
+add ContextDependentTokenizerAnnotator
+addDescription POSTagger
+load ChunkerSubPipe
+
+load org/apache/ctakes/examples/pipeline/explore/NoUmlsDictionary
+load AttributeCleartkSubPipe

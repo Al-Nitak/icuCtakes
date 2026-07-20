@@ -1,0 +1,17 @@
+// Stage 6c — Smoking-related clinical note through NER (full smoking CPE is XML/CPE-based).
+// For the dedicated smoking classifier CPE, run ExploreSmokingCpeRunner (see examples).
+// Look for: smoking-related entities in HTML; CPE assigns P/C/S/N/U document classes.
+
+set WriteBanner=yes
+
+load DefaultTokenizerPipeline
+add ContextDependentTokenizerAnnotator
+addDescription POSTagger
+load ChunkerSubPipe
+
+load org/apache/ctakes/examples/pipeline/explore/NoUmlsDictionary
+load AttributeCleartkSubPipe
+
+writeXmis
+writeHtml
+addLast util.log.FinishedLogger

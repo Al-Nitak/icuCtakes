@@ -1,0 +1,8 @@
+// Stage 8 — ICU handover JSON (no Drug NER window params).
+// Prefer ExploreIcuHandoverRunner for dose/frequency/route on medications:
+//   mvn -pl ctakes-examples exec:exec -DrunExploreIcuHandover ...
+
+set WriteBanner=yes
+
+load org/apache/ctakes/examples/pipeline/explore/08_IcuHandoverBase
+load org/apache/ctakes/examples/pipeline/explore/08_IcuHandoverWriters

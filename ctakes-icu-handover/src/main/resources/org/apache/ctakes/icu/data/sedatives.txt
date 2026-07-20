@@ -1,0 +1,18 @@
+# Sedation / neuro meds (lowercase)
+midazolam
+versed
+fentanyl
+propofol
+diprivan
+dexmedetomidine
+precedex
+lorazepam
+ativan
+morphine
+hydromorphone
+dilaudid
+ketamine
+cisatracurium
+rocuronium
+vecuronium
+succinylcholine

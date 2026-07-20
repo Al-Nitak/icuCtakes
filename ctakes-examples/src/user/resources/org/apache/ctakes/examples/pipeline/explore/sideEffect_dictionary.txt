@@ -1,0 +1,5 @@
+// generic|brands|side effects
+ibuprofen|advil,motrin|gastric pain,nausea,pain
+aspirin|asa,ecotrin|tinnitus,ringing in the ears,gastric pain
+metformin|glucophage|nausea,diarrhea
+morphine|ms contin|nausea,constipation,sedation

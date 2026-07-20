@@ -1,0 +1,9 @@
+// ICU slot extractors — load after clinical NER / drug / temporal.
+
+add org.apache.ctakes.icu.ae.GcsAnnotator
+add org.apache.ctakes.icu.ae.VentSupportAnnotator
+add org.apache.ctakes.icu.ae.VascularAccessAnnotator
+add org.apache.ctakes.icu.ae.CultureResultAnnotator
+add org.apache.ctakes.icu.ae.FeedingAnnotator
+add org.apache.ctakes.icu.ae.UrineOutputAnnotator
+add org.apache.ctakes.icu.ae.PlanItemAnnotator

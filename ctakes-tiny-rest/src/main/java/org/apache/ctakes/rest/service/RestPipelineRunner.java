@@ -80,7 +80,7 @@ public enum RestPipelineRunner {
          return "";
       }
       synchronized ( REST_PIPER_FILE_PATH ) {
-         final JCas jcas = _pool.getJCas( -1 );
+         final JCas jcas = _pool.getJCas();
          if ( jcas == null ) {
             throw new AnalysisEngineProcessException( new Throwable( "Could not acquire JCas from pool." ) );
          }

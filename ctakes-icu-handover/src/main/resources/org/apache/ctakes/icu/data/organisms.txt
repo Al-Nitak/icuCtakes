@@ -1,0 +1,21 @@
+# Common organisms (lowercase; multi-word allowed)
+e.\s*coli
+escherichia\s*coli
+klebsiella
+pseudomonas
+staph(?:ylococcus)?\s*aureus
+mrsa
+mssa
+enterococcus
+vre
+candida
+aspergillus
+acinetobacter
+proteus
+enterobacter
+streptococcus
+pneumococcus
+haemophilus
+stenotrophomonas
+clostridium\s*difficile
+c.\s*diff

@@ -1,0 +1,9 @@
+// Stage 8 writers — handover JSON/HTML + debug XMI/pretty HTML.
+
+package org.apache.ctakes.icu.cc
+add HandoverJsonFileWriter
+add HandoverHtmlFileWriter
+
+writeXmis
+writeHtml
+addLast util.log.FinishedLogger

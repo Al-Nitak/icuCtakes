@@ -1,0 +1,24 @@
+// Default clinical pipeline using local sno_rx dictionary without UMLS license check.
+// For local testing only. Production use requires a valid UMLS API key.
+
+set WriteBanner=yes
+
+// Hardcode no-UMLS dictionary (do not load DictionarySubPipe — it requires umlsKey)
+set LookupXml=resources/org/apache/ctakes/dictionary/lookup/fast/sno_rx_16ab_no_umls.xml
+
+load DefaultTokenizerPipeline
+
+add ContextDependentTokenizerAnnotator
+addDescription POSTagger
+
+load ChunkerSubPipe
+
+add DefaultJCasTermAnnotator
+
+load AttributeCleartkSubPipe
+
+// Write XMI + HTML when -o / OutputDirectory is set in the GUI
+writeXmis
+writeHtml
+
+addLast util.log.FinishedLogger

@@ -1,0 +1,5 @@
+// Shared no-UMLS dictionary lookup for explore tour pipers.
+// Uses local sno_rx HSQLDB without NIH UMLS license check.
+
+set LookupXml=resources/org/apache/ctakes/dictionary/lookup/fast/sno_rx_16ab_no_umls.xml
+add DefaultJCasTermAnnotator

@@ -1,0 +1,38 @@
+// Stage 5 — Kitchen sink: multi-format outputs (HTML, text, FHIR, tables, XMI, Anafora).
+// Look for: subdirectories under outputDir (html, text, fhir, bsv_table, xmi, anafora).
+
+set WriteBanner=yes
+
+load FullTokenizerPipeline
+add ContextDependentTokenizerAnnotator
+addDescription POSTagger
+
+load ChunkerSubPipe
+
+set minimumSpan=2
+load org/apache/ctakes/examples/pipeline/explore/NoUmlsDictionary
+
+load AttributeCleartkSubPipe
+load RelationSubPipe
+load TemporalSubPipe
+load CorefSubPipe
+
+add TokenTableFileWriter SubDirectory=bsv_tokens
+add TokenTableFileWriter SubDirectory=html_tokens TableType=HTML
+
+add pretty.html.HtmlTextWriter SubDirectory=html
+add pretty.plaintext.PrettyTextWriterFit SubDirectory=text
+
+package org.apache.ctakes.fhir.cc
+set WriteNlpFhir=true
+add FhirJsonFileWriter SubDirectory=fhir
+
+add SemanticTableFileWriter SubDirectory=bsv_table
+add SemanticTableFileWriter SubDirectory=csv_table TableType=CSV
+add SemanticTableFileWriter SubDirectory=html_table TableType=HTML
+
+add FileTreeXmiWriter SubDirectory=xmi
+
+add EventTimeAnaforaWriter SubDirectory=anafora
+
+addLast org.apache.ctakes.core.util.log.FinishedLogger

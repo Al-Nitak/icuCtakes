@@ -127,6 +127,10 @@
         </dependency>
         <dependency>
             <groupId>org.apache.ctakes</groupId>
+            <artifactId>ctakes-icu-handover</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.ctakes</groupId>
             <artifactId>ctakes-smoking-status</artifactId>
         </dependency>
         <dependency>

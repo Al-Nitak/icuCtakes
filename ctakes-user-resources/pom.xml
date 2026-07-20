@@ -136,6 +136,10 @@
         </dependency>
         <dependency>
             <groupId>org.apache.ctakes</groupId>
+            <artifactId>ctakes-icu-handover</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.ctakes</groupId>
             <artifactId>ctakes-smoking-status</artifactId>
         </dependency>
         <dependency>
@@ -273,6 +277,10 @@
                                 </resource>
                                 <resource>
                                     <directory>${project.basedir}/../ctakes-side-effect/src/user/resources</directory>
+                                    <filtering>true</filtering>
+                                </resource>
+                                <resource>
+                                    <directory>${project.basedir}/../ctakes-icu-handover/src/user/resources</directory>
                                     <filtering>true</filtering>
                                 </resource>
                                 <resource>

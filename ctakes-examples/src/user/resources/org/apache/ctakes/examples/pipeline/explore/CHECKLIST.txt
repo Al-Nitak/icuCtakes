@@ -1,0 +1,107 @@
+CHECKLIST — cTAKES Feature Exploration Tour
+===========================================
+
+Common I/O
+  input root : output/ctakes-in/explore/
+  output root: output/ctakes-out/explore/
+
+Shared test note (all stages)
+  Source: output/ctakes-in/sample_note.txt
+          output/ctakes-in/explore/clinical_tour.txt
+  Also copied into every stage dir as clinical_tour.txt (s1–s6c)
+  and as temporal/coref/meds/side_effect/smoking_note.txt aliases.
+  Re-copy after edits:
+    cp output/ctakes-in/sample_note.txt output/ctakes-in/explore/clinical_tour.txt
+    for s in s1 s2 s3 s4 s5 s6a s6b s6c; do
+      cp output/ctakes-in/explore/clinical_tour.txt output/ctakes-in/explore/$s/
+    done
+
+Prereqs (from repo root, Java 17/18):
+  export JAVA_HOME="/Users/albiruni/Library/Java/JavaVirtualMachines/openjdk-18.0.1/Contents/Home"
+  # Unpack dictionaries/models if resources/ was cleaned:
+  mvn -pl ctakes-dictionary-lookup-fast,ctakes-pos-tagger,ctakes-chunker,ctakes-assertion,ctakes-relation-extractor,ctakes-temporal,ctakes-coreference,ctakes-core,ctakes-smoking-status process-resources -DskipTests
+  # Ensure no-UMLS descriptor exists:
+  #   resources/org/apache/ctakes/dictionary/lookup/fast/sno_rx_16ab_no_umls.xml
+  mvn -pl ctakes-examples -am compile -DskipTests
+
+Generic piper stage:
+  mvn -pl ctakes-examples exec:exec -DrunExplorePiper \
+    -Dexplore.piper=org/apache/ctakes/examples/pipeline/explore/01_Tokenizer.piper \
+    -Dexplore.input=output/ctakes-in/explore/s1 \
+    -Dexplore.output=output/ctakes-out/explore/01_tokenizer
+
+Or PiperRunnerGui: load the .piper under
+  ctakes-examples/src/user/resources/org/apache/ctakes/examples/pipeline/explore/
+
+Stage 1 Tokenizer (01_Tokenizer.piper)
+  Input: clinical_tour.txt (s1). Look for: Sentence, Token, POS, Chunk in XMI/HTML.
+
+Stage 2 Relations (02_SectionedRelation.piper)
+  Input: clinical_tour.txt (s2)
+  Look for: sections, entities, DegreeOf / LocationOf relations.
+
+Stage 3 Temporal (03_Temporal.piper)
+  Input: clinical_tour.txt (s3)
+  Look for: EventMention, TimeMention, temporal relations / DocTimeRel.
+
+Stage 4 Coreference (04_Coreference.piper)
+  Input: clinical_tour.txt (s4)
+  Look for: Markable, CoreferenceRelation chains (patient/he).
+
+Stage 5 BigPipeline (05_BigPipeline.piper)
+  Input: clinical_tour.txt (s5)
+  Look for subdirs: html, text, fhir, bsv_table, csv_table, xmi, anafora.
+
+Stage 6a Drug NER
+  mvn -pl ctakes-examples exec:exec -DrunExploreDrug \
+    -Dexplore.input=output/ctakes-in/explore/s6a \
+    -Dexplore.output=output/ctakes-out/explore/06_drug
+  Look for: DrugMentionAnnotation + dose/frequency/route (midazolam/fentanyl cues).
+
+Stage 6b Side Effect
+  mvn -pl ctakes-examples exec:exec -DrunExploreSideEffect \
+    -Dexplore.input=output/ctakes-in/explore/s6b \
+    -Dexplore.output=output/ctakes-out/explore/06_sideeffect
+  Look for: SideEffectAnnotation in XMI/HTML (may be sparse on this ED note).
+
+Stage 6c Smoking
+  NER pass:
+    mvn -pl ctakes-examples exec:exec -DrunExplorePiper \
+      -Dexplore.piper=org/apache/ctakes/examples/pipeline/explore/06_SmokingStatus.piper \
+      -Dexplore.input=output/ctakes-in/explore/s6c \
+      -Dexplore.output=output/ctakes-out/explore/06_smoking
+  Full classifier CPE:
+    mvn -pl ctakes-examples exec:exec -DrunExploreSmoking \
+      -Dexplore.input=output/ctakes-in/explore/s6c \
+      -Dexplore.output=output/ctakes-out/explore/06_smoking_cpe
+  Look for: smoking class if any; else UNKNOWN on this note.
+
+Stage 7a FHIR (07_Fhir.piper)
+  Input: clinical_tour.txt (s2)
+  Look for: *.json FHIR resources + HTML/XMI.
+
+Stage 7b Tiny REST (/process formats)
+  Same engine as TinyController /process:
+    mvn -pl ctakes-examples exec:exec -DrunExploreTinyRest \
+      -Dexplore.input=output/ctakes-in/explore/clinical_tour.txt \
+      -Dexplore.output=output/ctakes-out/explore/07_rest
+  Writes process_pretty.txt, process_cui.txt, process_umls.json, process_fhir.json.
+  Formats match TinyController /process: fhir, pretty, cui, umls, xmi, property.
+
+Stage 7c Dictionary Creator / CVD
+  mvn -pl ctakes-examples exec:exec -DrunDictionaryGui
+  mvn -pl ctakes-examples exec:java -DrunCVD
+
+Stage 8 ICU Handover
+  Input: output/ctakes-in/explore/s8/icu_handover_note.txt
+  Full (with Drug NER dose/freq/route):
+    mvn -pl ctakes-examples exec:exec -DrunExploreIcuHandover \
+      -Dexplore.input=output/ctakes-in/explore/s8 \
+      -Dexplore.output=output/ctakes-out/explore/08_icu
+  Piper only (no Drug NER window params):
+    mvn -pl ctakes-examples exec:exec -DrunExplorePiper \
+      -Dexplore.piper=org/apache/ctakes/examples/pipeline/explore/08_IcuHandover.piper \
+      -Dexplore.input=output/ctakes-in/explore/s8 \
+      -Dexplore.output=output/ctakes-out/explore/08_icu
+  Look for: *.handover.json with GCS, vent settings, meds, lines, Abx, imaging, plan.
+  Tiny REST format key: handover (ICU slot AEs loaded in TinyRestPipeline.piper).

@@ -1,0 +1,14 @@
+// Tiny REST always loads a piper named TinyRestPipeline.piper from the classpath.
+// No-UMLS explore tour default for local testing.
+
+set WriteBanner=yes
+
+load DefaultTokenizerPipeline
+add ContextDependentTokenizerAnnotator
+addDescription POSTagger
+load ChunkerSubPipe
+
+set LookupXml=resources/org/apache/ctakes/dictionary/lookup/fast/sno_rx_16ab_no_umls.xml
+add DefaultJCasTermAnnotator
+
+load AttributeCleartkSubPipe

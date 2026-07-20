@@ -1,0 +1,17 @@
+# Culture sites (lowercase)
+blood
+urine
+sputum
+bal
+bronchoalveolar
+wound
+csf
+peritoneal
+pleural
+catheter
+tip
+stool
+throat
+nasal
+mrsa
+swab

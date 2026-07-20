@@ -1,0 +1,9 @@
+// Stage 6b — Side effects via ExploreSideEffectRunner (needs dictionary resource).
+// Prefer: mvn -pl ctakes-examples exec:exec -DrunExploreSideEffect
+//          -Dexplore.input=... -Dexplore.output=...
+
+set WriteBanner=yes
+load org/apache/ctakes/examples/pipeline/explore/06_SideEffectBase
+writeXmis
+writeHtml
+addLast util.log.FinishedLogger

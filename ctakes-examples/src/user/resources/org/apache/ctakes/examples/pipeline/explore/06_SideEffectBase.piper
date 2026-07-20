@@ -1,0 +1,14 @@
+// Base clinical steps for ExploreSideEffectRunner.
+// Uses tag-based sections so SideEffectAnnotator can read segment IDs (20103/20105).
+
+set WriteBanner=yes
+
+add SimpleSegmentWithTagsAnnotator
+add SentenceDetector
+add TokenizerAnnotatorPTB
+add ContextDependentTokenizerAnnotator
+addDescription POSTagger
+load ChunkerSubPipe
+
+load org/apache/ctakes/examples/pipeline/explore/NoUmlsDictionary
+load AttributeCleartkSubPipe

@@ -1,0 +1,10 @@
+# Speed up docker build context (WAR + resources are copied explicitly).
+**/.git
+**/.idea
+**/.cursor
+**/target
+!ctakes-tiny-rest-war/target/ctakes_tiny_rest.war
+output
+**/node_modules
+**/*.iml
+**/.DS_Store

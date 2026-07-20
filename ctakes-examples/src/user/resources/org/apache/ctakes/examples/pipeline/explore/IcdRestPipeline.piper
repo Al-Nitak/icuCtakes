@@ -1,0 +1,13 @@
+// REST test pipeline using ctakesicd2015 dictionary.
+
+set WriteBanner=yes
+
+load DefaultTokenizerPipeline
+add ContextDependentTokenizerAnnotator
+addDescription POSTagger
+load ChunkerSubPipe
+
+set LookupXml=resources/org/apache/ctakes/dictionary/lookup/fast/ctakesicd2015_no_umls.xml
+add DefaultJCasTermAnnotator LookupXml=resources/org/apache/ctakes/dictionary/lookup/fast/ctakesicd2015_no_umls.xml
+
+load AttributeCleartkSubPipe

@@ -1,0 +1,23 @@
+# PPI / GI meds
+pantoprazole
+protonix
+omeprazole
+prilosec
+esomeprazole
+nexium
+lansoprazole
+ranitidine
+famotidine
+pepcid
+ondansetron
+zofran
+metoclopramide
+reglan
+sucralfate
+lactulose
+senna
+docusate
+polyethylene
+glycol
+miraLAX
+miralax

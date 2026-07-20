@@ -7,3 +7,4 @@ classpath*:org/apache/ctakes/drug/ner/types/TypeSystem.xml
 classpath*:org/apache/ctakes/padtermspotter/types/TypeSystem.xml
 classpath*:org/apache/ctakes/smoking/status/types/TypeSystem.xml
 classpath*:org/apache/ctakes/side/effect/types/TypeSystem.xml
+classpath*:org/apache/ctakes/icu/types/TypeSystem.xml

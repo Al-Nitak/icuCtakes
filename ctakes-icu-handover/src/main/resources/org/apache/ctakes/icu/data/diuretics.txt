@@ -1,0 +1,14 @@
+# Diuretics / renal meds
+furosemide
+lasix
+bumetanide
+bumex
+torsemide
+hydrochlorothiazide
+hctz
+spironolactone
+aldactone
+acetazolamide
+mannitol
+metolazone
+zaroxolyn

@@ -58,6 +58,7 @@ public enum PipeBitLocator {
              "ne.contexts",
              "preprocessor",
              "sideeffect",
+             "icu",
              "smokingstatus",
              "smoking.status",
              "dictionary.lookup",

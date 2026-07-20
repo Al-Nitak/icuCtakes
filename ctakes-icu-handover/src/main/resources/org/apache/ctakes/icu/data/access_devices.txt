@@ -1,0 +1,20 @@
+# Vascular access lexicon: pattern||accessType
+# pattern is case-insensitive regex fragment matched as whole word-ish
+central\s*line||CVC
+central\s*venous\s*catheter||CVC
+\bcvc\b||CVC
+\bj\s*catheter\b||CVC
+triple\s*lumen||CVC
+\bpicc\b||PICC
+peripherally\s*inserted\s*central||PICC
+arterial\s*line||art_line
+\bart[\s\-]?line\b||art_line
+\ba[\s\-]?line\b||art_line
+hd\s*catheter||HD
+hemodialysis\s*catheter||HD
+dialysis\s*catheter||HD
+\bquinton\b||HD
+peripheral\s*iv||peripheral
+\bpiv\b||peripheral
+peripheral\s*line||peripheral
+iv\s*access||peripheral

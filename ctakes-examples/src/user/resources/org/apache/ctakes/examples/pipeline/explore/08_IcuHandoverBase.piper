@@ -1,0 +1,16 @@
+// Stage 8 clinical + ICU slots (no Drug NER, no writers). Used by ExploreIcuHandoverRunner.
+
+set WriteBanner=yes
+
+set SectionsBsv=org/apache/ctakes/icu/sections/IcuHandoverSectionRegex.bsv
+
+load FullTokenizerPipeline
+add ContextDependentTokenizerAnnotator
+addDescription POSTagger
+load ChunkerSubPipe
+
+load org/apache/ctakes/examples/pipeline/explore/NoUmlsDictionary
+load AttributeCleartkSubPipe
+load RelationSubPipe
+load TemporalSubPipe
+load org/apache/ctakes/icu/pipeline/IcuSlotSubPipe

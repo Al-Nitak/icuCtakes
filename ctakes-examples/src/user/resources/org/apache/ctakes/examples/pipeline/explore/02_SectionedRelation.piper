@@ -1,0 +1,17 @@
+// Stage 2 — Sections + NER + assertion + degree_of / location_of relations.
+// Look for: section headers, entities, polarity, DegreeOf / LocationOf relations.
+
+set WriteBanner=yes
+
+load FullTokenizerPipeline
+add ContextDependentTokenizerAnnotator
+addDescription POSTagger
+load ChunkerSubPipe
+
+load org/apache/ctakes/examples/pipeline/explore/NoUmlsDictionary
+load AttributeCleartkSubPipe
+load RelationSubPipe
+
+writeXmis
+writeHtml
+addLast util.log.FinishedLogger

@@ -1,0 +1,13 @@
+# Vasopressor / inotrope name tokens (lowercase)
+norepinephrine
+noradrenaline
+levophed
+epinephrine
+adrenaline
+vasopressin
+phenylephrine
+dopamine
+dobutamine
+milrinone
+angiotensin
+giapreza

@@ -1,0 +1,19 @@
+// Stage 4 — Coreference chains (patient / he / the wound, etc.).
+// Look for: Markable, CoreferenceRelation, CollectionTextRelation chains.
+
+set WriteBanner=yes
+
+load FullTokenizerPipeline
+add ContextDependentTokenizerAnnotator
+addDescription POSTagger
+load ChunkerSubPipe
+
+load org/apache/ctakes/examples/pipeline/explore/NoUmlsDictionary
+load AttributeCleartkSubPipe
+load RelationSubPipe
+load TemporalSubPipe
+load CorefSubPipe
+
+writeXmis
+writeHtml
+addLast util.log.FinishedLogger

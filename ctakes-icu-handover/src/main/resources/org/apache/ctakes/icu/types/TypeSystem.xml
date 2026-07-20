@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+    Licensed to the Apache Software Foundation (ASF) under one
+    or more contributor license agreements.  See the NOTICE file
+    distributed with this work for additional information
+    regarding copyright ownership.  The ASF licenses this file
+    to you under the Apache License, Version 2.0 (the
+    "License"); you may not use this file except in compliance
+    with the License.  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing,
+    software distributed under the License is distributed on an
+    "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+    KIND, either express or implied.  See the License for the
+    specific language governing permissions and limitations
+    under the License.
+
+-->
+<typeSystemDescription xmlns="http://uima.apache.org/resourceSpecifier">
+  <name>org.apache.ctakes.icu.types.TypeSystem</name>
+  <description>ICU handover slot annotation types</description>
+  <version>1.0</version>
+  <imports>
+    <import name="org.apache.ctakes.typesystem.types.TypeSystem"/>
+  </imports>
+  <types>
+    <typeDescription>
+      <name>org.apache.ctakes.icu.type.GcsMention</name>
+      <description>Glasgow Coma Scale value mention</description>
+      <supertypeName>org.apache.ctakes.typesystem.type.textsem.IdentifiedAnnotation</supertypeName>
+      <features>
+        <featureDescription>
+          <name>value</name>
+          <description>GCS numeric score</description>
+          <rangeTypeName>uima.cas.Integer</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>underSedation</name>
+          <description>True when GCS is reported under sedation</description>
+          <rangeTypeName>uima.cas.Boolean</rangeTypeName>
+        </featureDescription>
+      </features>
+    </typeDescription>
+    <typeDescription>
+      <name>org.apache.ctakes.icu.type.VentSupportMention</name>
+      <description>Ventilation or oxygen support settings</description>
+      <supertypeName>org.apache.ctakes.typesystem.type.textsem.IdentifiedAnnotation</supertypeName>
+      <features>
+        <featureDescription>
+          <name>mode</name>
+          <description>Vent/O2 mode e.g. SIMV, HFNC, NC</description>
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>rr</name>
+          <description>Respiratory rate setting</description>
+          <rangeTypeName>uima.cas.Float</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>tv</name>
+          <description>Tidal volume</description>
+          <rangeTypeName>uima.cas.Float</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>peep</name>
+          <description>PEEP setting</description>
+          <rangeTypeName>uima.cas.Float</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>fio2</name>
+          <description>FiO2 as fraction or percent</description>
+          <rangeTypeName>uima.cas.Float</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>flow</name>
+          <description>Flow rate L/min</description>
+          <rangeTypeName>uima.cas.Float</rangeTypeName>
+        </featureDescription>
+      </features>
+    </typeDescription>
+    <typeDescription>
+      <name>org.apache.ctakes.icu.type.VascularAccessMention</name>
+      <description>Vascular access / line in place</description>
+      <supertypeName>org.apache.ctakes.typesystem.type.textsem.IdentifiedAnnotation</supertypeName>
+      <features>
+        <featureDescription>
+          <name>accessType</name>
+          <description>peripheral, CVC, PICC, art_line, HD</description>
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>insertTime</name>
+          <description>Insertion date/time if known</description>
+          <rangeTypeName>org.apache.ctakes.typesystem.type.textsem.TimeMention</rangeTypeName>
+        </featureDescription>
+      </features>
+    </typeDescription>
+    <typeDescription>
+      <name>org.apache.ctakes.icu.type.CultureResultMention</name>
+      <description>Microbiology culture result</description>
+      <supertypeName>org.apache.ctakes.typesystem.type.textsem.IdentifiedAnnotation</supertypeName>
+      <features>
+        <featureDescription>
+          <name>site</name>
+          <description>Culture site</description>
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>organism</name>
+          <description>Organism name</description>
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>sensitivities</name>
+          <description>Sensitivity tokens</description>
+          <rangeTypeName>uima.cas.StringArray</rangeTypeName>
+        </featureDescription>
+      </features>
+    </typeDescription>
+    <typeDescription>
+      <name>org.apache.ctakes.icu.type.FeedingMention</name>
+      <description>Enteral/parenteral feeding route and formula</description>
+      <supertypeName>org.apache.ctakes.typesystem.type.textsem.IdentifiedAnnotation</supertypeName>
+      <features>
+        <featureDescription>
+          <name>route</name>
+          <description>PO, NGT, PEG, TPN, etc.</description>
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>formula</name>
+          <description>Formula product name</description>
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+      </features>
+    </typeDescription>
+    <typeDescription>
+      <name>org.apache.ctakes.icu.type.UrineOutputMention</name>
+      <description>Urine output measurement</description>
+      <supertypeName>org.apache.ctakes.typesystem.type.textsem.IdentifiedAnnotation</supertypeName>
+      <features>
+        <featureDescription>
+          <name>value</name>
+          <description>Numeric UOP value</description>
+          <rangeTypeName>uima.cas.Float</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>unit</name>
+          <description>Unit e.g. ml/h</description>
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+      </features>
+    </typeDescription>
+    <typeDescription>
+      <name>org.apache.ctakes.icu.type.PlanItem</name>
+      <description>Plan / next-step item</description>
+      <supertypeName>org.apache.ctakes.typesystem.type.textsem.IdentifiedAnnotation</supertypeName>
+      <features>
+        <featureDescription>
+          <name>actionText</name>
+          <description>Plan action text</description>
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+      </features>
+    </typeDescription>
+  </types>
+</typeSystemDescription>

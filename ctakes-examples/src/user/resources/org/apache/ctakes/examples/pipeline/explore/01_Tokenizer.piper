@@ -1,0 +1,13 @@
+// Stage 1 — Linguistics only: sentences, tokens, POS, chunks. No dictionary.
+// Look for: Sentence, Token, POS tags, NP/VP chunks in XMI/HTML.
+
+set WriteBanner=yes
+
+load DefaultTokenizerPipeline
+add ContextDependentTokenizerAnnotator
+addDescription POSTagger
+load ChunkerSubPipe
+
+writeXmis
+writeHtml
+addLast util.log.FinishedLogger

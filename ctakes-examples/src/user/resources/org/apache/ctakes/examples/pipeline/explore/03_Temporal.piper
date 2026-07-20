@@ -1,0 +1,18 @@
+// Stage 3 — Temporal: events, times, event-time / event-event / doc-time relations.
+// Look for: EventMention, TimeMention, TemporalTextRelation / TLINK categories.
+
+set WriteBanner=yes
+
+load FullTokenizerPipeline
+add ContextDependentTokenizerAnnotator
+addDescription POSTagger
+load ChunkerSubPipe
+
+load org/apache/ctakes/examples/pipeline/explore/NoUmlsDictionary
+load AttributeCleartkSubPipe
+load RelationSubPipe
+load TemporalSubPipe
+
+writeXmis
+writeHtml
+addLast util.log.FinishedLogger

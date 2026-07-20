@@ -1,0 +1,25 @@
+# Anticoagulant / antiplatelet
+heparin
+enoxaparin
+lovenox
+warfarin
+coumadin
+apixaban
+eliquis
+rivaroxaban
+xarelto
+dabigatran
+pradaxa
+argatroban
+bivalirudin
+fondaparinux
+aspirin
+asa
+clopidogrel
+plavix
+ticagrelor
+brilinta
+prasugrel
+effient
+alteplase
+tpa
