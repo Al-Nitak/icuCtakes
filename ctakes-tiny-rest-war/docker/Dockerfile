@@ -14,11 +14,14 @@ RUN yum install -y curl ca-certificates tar gzip unzip \
        | tar -xz -C /opt \
     && mv "/opt/apache-tomcat-${TOMCAT_VERSION}" "${CATALINA_HOME}" \
     && rm -rf "${CATALINA_HOME}/webapps/docs" "${CATALINA_HOME}/webapps/examples" \
-             "${CATALINA_HOME}/webapps/host-manager" "${CATALINA_HOME}/webapps/manager"
+             "${CATALINA_HOME}/webapps/host-manager" "${CATALINA_HOME}/webapps/manager" \
+             "${CATALINA_HOME}/webapps/ROOT"
 
 WORKDIR ${CATALINA_HOME}
 
-# Deploy at context root so endpoints are /service/process
+# Deploy at context root so endpoints are /service/process.
+# Must remove stock webapps/ROOT/ first (done above), or Tomcat serves that
+# directory and ignores ROOT.war — which caused /service/process 404s.
 COPY ctakes-tiny-rest-war/target/ctakes_tiny_rest.war webapps/ROOT.war
 
 # Pipeline + dictionary are resolved relative to Tomcat's working directory.
