@@ -8,9 +8,8 @@ ENV CATALINA_HOME=/opt/tomcat
 ENV PATH="${CATALINA_HOME}/bin:${PATH}"
 ENV JAVA_OPTS="-Xmx6g -Djava.awt.headless=true"
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl ca-certificates unzip \
-    && rm -rf /var/lib/apt/lists/* \
+RUN yum install -y curl ca-certificates tar gzip unzip \
+    && yum clean all \
     && curl -fsSL "https://archive.apache.org/dist/tomcat/tomcat-10/v${TOMCAT_VERSION}/bin/apache-tomcat-${TOMCAT_VERSION}.tar.gz" \
        | tar -xz -C /opt \
     && mv "/opt/apache-tomcat-${TOMCAT_VERSION}" "${CATALINA_HOME}" \
