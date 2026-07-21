@@ -1,8 +1,8 @@
 # Runtime image for ctakes-tiny-rest (ICU handover + no-UMLS dictionary).
 # Build the WAR on the host first:  ./ctakes-tiny-rest-war/docker/build-image.sh
-FROM eclipse-temurin:18-jre-jammy
+FROM amazoncorretto:17
 
-ARG TOMCAT_VERSION=10.1.26
+ARG TOMCAT_VERSION=10.1.57
 
 ENV CATALINA_HOME=/opt/tomcat
 ENV PATH="${CATALINA_HOME}/bin:${PATH}"
