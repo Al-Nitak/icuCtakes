@@ -12,7 +12,4 @@ morphine
 hydromorphone
 dilaudid
 ketamine
-cisatracurium
-rocuronium
-vecuronium
-succinylcholine
+
