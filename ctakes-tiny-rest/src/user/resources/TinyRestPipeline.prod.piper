@@ -1,0 +1,20 @@
+// Production Tiny REST pipeline — UMLS SNOMED/RxNorm dictionary (sno_rx_16ab).
+// Used only when started with:
+//   -Dctakes.rest.piper=TinyRestPipeline.prod.piper
+//   or CTAKES_REST_PIPER=TinyRestPipeline.prod.piper
+// Requires UMLS API key: -Dctakes.umls_apikey=YOUR_KEY  (or env ctakes.umls_apikey / umlsKey)
+// and dictionary DB at:
+//   resources/org/apache/ctakes/dictionary/lookup/fast/sno_rx_16ab/
+
+set WriteBanner=yes
+
+load DefaultTokenizerPipeline
+add ContextDependentTokenizerAnnotator
+addDescription POSTagger
+load ChunkerSubPipe
+
+set LookupXml=resources/org/apache/ctakes/dictionary/lookup/fast/sno_rx_16ab.xml
+add DefaultJCasTermAnnotator LookupXml=resources/org/apache/ctakes/dictionary/lookup/fast/sno_rx_16ab.xml
+
+load AttributeCleartkSubPipe
+load org/apache/ctakes/icu/pipeline/IcuSlotSubPipe

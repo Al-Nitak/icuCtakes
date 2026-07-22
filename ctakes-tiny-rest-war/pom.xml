@@ -108,6 +108,7 @@
                            <directory>${project.basedir}/../ctakes-tiny-rest/src/user/resources</directory>
                            <includes>
                               <include>TinyRestPipeline.piper</include>
+                              <include>TinyRestPipeline.prod.piper</include>
                            </includes>
                            <filtering>false</filtering>
                         </resource>
