@@ -72,7 +72,9 @@ public enum RestPipelineRunner {
          // Workaround https://github.com/apache/uima-uimaj/issues/234
          // https://github.com/ClearTK/cleartk/issues/470
          CasCreationUtils.createCas();
-         LOGGER.info( "Loading REST pipeline from piper: {}", _piperPath );
+         // Enum constructors cannot reference non-constant static fields (e.g. LOGGER).
+         LoggerFactory.getLogger( "RestPipelineRunner" )
+               .info( "Loading REST pipeline from piper: {}", _piperPath );
          final PiperFileReader reader = new PiperFileReader( _piperPath );
          final PipelineBuilder builder = reader.getBuilder();
 
