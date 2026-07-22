@@ -50,19 +50,30 @@ public enum RestPipelineRunner {
 
    static private final Logger LOGGER = LoggerFactory.getLogger( "RestPipelineRunner" );
 
-   // Use a constant piper name.
-   // This piper can wrap (load *) another piper that contains the actual desired pipeline.
-   static private final String REST_PIPER_FILE_PATH = "TinyRestPipeline.piper";
+   /** Default (local/dev) piper — typically no-UMLS. */
+   static private final String DEFAULT_REST_PIPER = "TinyRestPipeline.piper";
+
+   /**
+    * Override with {@code -Dctakes.rest.piper=TinyRestPipeline.prod.piper}
+    * or env {@code CTAKES_REST_PIPER} / {@code ctakes.rest.piper}.
+    */
+   static private final String REST_PIPER_PROP = "ctakes.rest.piper";
+   static private final String REST_PIPER_ENV = "CTAKES_REST_PIPER";
+
+   static private final Object PROCESS_LOCK = new Object();
 
    private final AnalysisEngine _engine;
    private final JCasPool _pool;
+   private final String _piperPath;
 
    RestPipelineRunner() {
+      _piperPath = resolvePiperPath();
       try {
          // Workaround https://github.com/apache/uima-uimaj/issues/234
          // https://github.com/ClearTK/cleartk/issues/470
          CasCreationUtils.createCas();
-         final PiperFileReader reader = new PiperFileReader( REST_PIPER_FILE_PATH );
+         LOGGER.info( "Loading REST pipeline from piper: {}", _piperPath );
+         final PiperFileReader reader = new PiperFileReader( _piperPath );
          final PipelineBuilder builder = reader.getBuilder();
 
          final AnalysisEngineDescription pipeline = builder.getAnalysisEngineDesc();
@@ -74,12 +85,28 @@ public enum RestPipelineRunner {
       }
    }
 
+   static private String resolvePiperPath() {
+      final String fromProp = System.getProperty( REST_PIPER_PROP );
+      if ( fromProp != null && !fromProp.isBlank() ) {
+         return fromProp.trim();
+      }
+      final String fromEnv = System.getenv( REST_PIPER_ENV );
+      if ( fromEnv != null && !fromEnv.isBlank() ) {
+         return fromEnv.trim();
+      }
+      final String fromEnvAlt = System.getenv( REST_PIPER_PROP );
+      if ( fromEnvAlt != null && !fromEnvAlt.isBlank() ) {
+         return fromEnvAlt.trim();
+      }
+      return DEFAULT_REST_PIPER;
+   }
+
    public String process( final ResponseFormatter formatter, final String text )
          throws AnalysisEngineProcessException {
       if ( text == null || text.trim().isEmpty() ) {
          return "";
       }
-      synchronized ( REST_PIPER_FILE_PATH ) {
+      synchronized ( PROCESS_LOCK ) {
          final JCas jcas = _pool.getJCas();
          if ( jcas == null ) {
             throw new AnalysisEngineProcessException( new Throwable( "Could not acquire JCas from pool." ) );
