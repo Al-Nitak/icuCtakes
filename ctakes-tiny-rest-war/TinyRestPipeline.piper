@@ -1,5 +1,7 @@
-// Tiny REST always loads a piper named TinyRestPipeline.piper from the classpath.
-// No-UMLS explore tour default for local testing.
+// Local/dev Tiny REST pipeline (default). No UMLS license check.
+// Production uses TinyRestPipeline.prod.piper via:
+//   -Dctakes.rest.piper=TinyRestPipeline.prod.piper
+//   or CTAKES_REST_PIPER=TinyRestPipeline.prod.piper
 
 set WriteBanner=yes
 

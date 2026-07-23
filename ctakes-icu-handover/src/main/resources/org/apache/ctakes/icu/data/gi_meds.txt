@@ -1,23 +1,21 @@
-# PPI / GI meds
-pantoprazole
-protonix
-omeprazole
-prilosec
-esomeprazole
-nexium
-lansoprazole
-ranitidine
-famotidine
-pepcid
-ondansetron
-zofran
-metoclopramide
-reglan
-sucralfate
-lactulose
-senna
-docusate
-polyethylene
-glycol
-miraLAX
-miralax
+# PPI / GI meds: pattern||preferred||CUI||RXNORM||rxcui
+pantoprazole||Pantoprazole||C0081876||RXNORM||40790
+protonix||Pantoprazole||C0081876||RXNORM||40790
+omeprazole||Omeprazole||C0028978||RXNORM||7646
+prilosec||Omeprazole||C0028978||RXNORM||7646
+esomeprazole||Esomeprazole||C0972471||RXNORM||283742
+nexium||Esomeprazole||C0972471||RXNORM||283742
+lansoprazole||Lansoprazole||C0064965||RXNORM||17128
+ranitidine||Ranitidine||C0034665||RXNORM||9143
+famotidine||Famotidine||C0015628||RXNORM||4278
+pepcid||Famotidine||C0015628||RXNORM||4278
+ondansetron||Ondansetron||C0061851||RXNORM||26225
+zofran||Ondansetron||C0061851||RXNORM||26225
+metoclopramide||Metoclopramide||C0025853||RXNORM||6915
+reglan||Metoclopramide||C0025853||RXNORM||6915
+sucralfate||Sucralfate||C0038261||RXNORM||10154
+lactulose||Lactulose||C0022965||RXNORM||6218
+senna||Senna||C0036654||RXNORM||9793
+docusate||Docusate||C0012465||RXNORM||236280
+polyethylene\s*glycol||Polyethylene glycol||C0032483||RXNORM||8516
+miralax||Polyethylene glycol||C0032483||RXNORM||8516

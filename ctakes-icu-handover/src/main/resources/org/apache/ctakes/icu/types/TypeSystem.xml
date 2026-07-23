@@ -114,6 +114,26 @@
           <rangeTypeName>uima.cas.String</rangeTypeName>
         </featureDescription>
         <featureDescription>
+          <name>preferredText</name>
+          <description>Preferred organism label from lexicon</description>
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>cui</name>
+          <description>UMLS CUI</description>
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>codingScheme</name>
+          <description>Coding scheme, e.g. SNOMEDCT_US</description>
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>code</name>
+          <description>Concept code in codingScheme</description>
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
           <name>sensitivities</name>
           <description>Sensitivity tokens</description>
           <rangeTypeName>uima.cas.StringArray</rangeTypeName>

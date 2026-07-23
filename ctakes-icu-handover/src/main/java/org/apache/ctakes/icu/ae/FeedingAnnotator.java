@@ -31,7 +31,7 @@ final public class FeedingAnnotator extends JCasAnnotator_ImplBase {
          Pattern.CASE_INSENSITIVE );
 
    static private final Set<String> FORMULAS
-         = LexiconLoader.loadTokens( "org/apache/ctakes/icu/data/feeding_formulas.txt" );
+         = LexiconLoader.loadCodedTokenSet( "org/apache/ctakes/icu/data/feeding_formulas.txt" );
 
    @Override
    public void process( final JCas jCas ) throws AnalysisEngineProcessException {

@@ -1,15 +1,14 @@
-# Sedation / neuro meds (lowercase)
-midazolam
-versed
-fentanyl
-propofol
-diprivan
-dexmedetomidine
-precedex
-lorazepam
-ativan
-morphine
-hydromorphone
-dilaudid
-ketamine
-
+# Sedation / analgesia: pattern||preferred||CUI||RXNORM||rxcui
+midazolam||Midazolam||C0026056||RXNORM||6960
+versed||Midazolam||C0026056||RXNORM||6960
+fentanyl||Fentanyl||C0015846||RXNORM||4337
+propofol||Propofol||C0033487||RXNORM||8782
+diprivan||Propofol||C0033487||RXNORM||8782
+dexmedetomidine||Dexmedetomidine||C0113307||RXNORM||48937
+precedex||Dexmedetomidine||C0113307||RXNORM||48937
+lorazepam||Lorazepam||C0024002||RXNORM||6470
+ativan||Lorazepam||C0024002||RXNORM||6470
+morphine||Morphine||C0026549||RXNORM||7052
+hydromorphone||Hydromorphone||C0013565||RXNORM||3423
+dilaudid||Hydromorphone||C0013565||RXNORM||3423
+ketamine||Ketamine||C0022614||RXNORM||6130

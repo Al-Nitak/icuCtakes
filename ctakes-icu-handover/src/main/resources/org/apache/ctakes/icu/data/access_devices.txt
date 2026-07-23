@@ -1,20 +1,19 @@
-# Vascular access lexicon: pattern||accessType
-# pattern is case-insensitive regex fragment matched as whole word-ish
-central\s*line||CVC
-central\s*venous\s*catheter||CVC
-\bcvc\b||CVC
-\bj\s*catheter\b||CVC
-triple\s*lumen||CVC
-\bpicc\b||PICC
-peripherally\s*inserted\s*central||PICC
-arterial\s*line||art_line
-\bart[\s\-]?line\b||art_line
-\ba[\s\-]?line\b||art_line
-hd\s*catheter||HD
-hemodialysis\s*catheter||HD
-dialysis\s*catheter||HD
-\bquinton\b||HD
-peripheral\s*iv||peripheral
-\bpiv\b||peripheral
-peripheral\s*line||peripheral
-iv\s*access||peripheral
+# Vascular access: pattern||preferred||CUI||SNOMEDCT_US||code
+central\s*line||CVC||C0175753||SNOMEDCT_US||52124006
+central\s*venous\s*catheter||CVC||C0175753||SNOMEDCT_US||52124006
+\bcvc\b||CVC||C0175753||SNOMEDCT_US||52124006
+\bj\s*catheter\b||CVC||C0175753||SNOMEDCT_US||52124006
+triple\s*lumen||CVC||C0175753||SNOMEDCT_US||52124006
+\bpicc\b||PICC||C1145640||SNOMEDCT_US||82449006
+peripherally\s*inserted\s*central||PICC||C1145640||SNOMEDCT_US||82449006
+arterial\s*line||Arterial line||C0180711||SNOMEDCT_US||397078009
+\bart[\s\-]?line\b||Arterial line||C0180711||SNOMEDCT_US||397078009
+\ba[\s\-]?line\b||Arterial line||C0180711||SNOMEDCT_US||397078009
+hd\s*catheter||HD catheter||C0180718||SNOMEDCT_US||360148006
+hemodialysis\s*catheter||HD catheter||C0180718||SNOMEDCT_US||360148006
+dialysis\s*catheter||HD catheter||C0180718||SNOMEDCT_US||360148006
+\bquinton\b||HD catheter||C0180718||SNOMEDCT_US||360148006
+peripheral\s*iv||Peripheral IV||C0021481||SNOMEDCT_US||419615001
+\bpiv\b||Peripheral IV||C0021481||SNOMEDCT_US||419615001
+peripheral\s*line||Peripheral IV||C0021481||SNOMEDCT_US||419615001
+iv\s*access||Peripheral IV||C0021481||SNOMEDCT_US||419615001

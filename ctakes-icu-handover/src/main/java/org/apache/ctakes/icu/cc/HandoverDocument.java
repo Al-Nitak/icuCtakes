@@ -50,6 +50,8 @@ public class HandoverDocument {
       public int begin;
       public int end;
       public String cui;
+      public String codingScheme;
+      public String code;
       public String preferredText;
       public String dose;
       public String strength;
@@ -165,6 +167,10 @@ public class HandoverDocument {
    public static class CultureDto {
       public String site;
       public String organism;
+      public String preferredText;
+      public String cui;
+      public String codingScheme;
+      public String code;
       public List<String> sensitivities = new ArrayList<>();
       public String text;
       public int begin;
@@ -181,6 +187,10 @@ public class HandoverDocument {
       public String site;
       public TimeDto insertDate;
       public String text;
+      public String preferredText;
+      public String cui;
+      public String codingScheme;
+      public String code;
       public int begin;
       public int end;
    }

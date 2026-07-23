@@ -1,13 +1,13 @@
-# Vasopressor / inotrope name tokens (lowercase)
-norepinephrine
-noradrenaline
-levophed
-epinephrine
-adrenaline
-vasopressin
-phenylephrine
-dopamine
-dobutamine
-milrinone
-angiotensin
-giapreza
+# ICU vasopressors/inotropes: pattern||preferred||CUI||RXNORM||rxcui
+norepinephrine||Norepinephrine||C0028351||RXNORM||7512
+noradrenaline||Norepinephrine||C0028351||RXNORM||7512
+levophed||Norepinephrine||C0028351||RXNORM||7512
+epinephrine||Epinephrine||C0014563||RXNORM||3992
+adrenaline||Epinephrine||C0014563||RXNORM||3992
+vasopressin||Vasopressin||C0042395||RXNORM||11149
+phenylephrine||Phenylephrine||C0031456||RXNORM||8163
+dopamine||Dopamine||C0013030||RXNORM||3628
+dobutamine||Dobutamine||C0012962||RXNORM||3616
+milrinone||Milrinone||C0066504||RXNORM||7004
+angiotensin||Angiotensin II||C0003018||RXNORM||11279
+giapreza||Angiotensin II||C0003018||RXNORM||11279

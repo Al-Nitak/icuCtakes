@@ -1,14 +1,14 @@
-# Diuretics / renal meds
-furosemide
-lasix
-bumetanide
-bumex
-torsemide
-hydrochlorothiazide
-hctz
-spironolactone
-aldactone
-acetazolamide
-mannitol
-metolazone
-zaroxolyn
+# Diuretics: pattern||preferred||CUI||RXNORM||rxcui
+furosemide||Furosemide||C0016860||RXNORM||4603
+lasix||Furosemide||C0016860||RXNORM||4603
+bumetanide||Bumetanide||C0006350||RXNORM||1808
+bumex||Bumetanide||C0006350||RXNORM||1808
+torsemide||Torsemide||C0076829||RXNORM||38413
+hydrochlorothiazide||Hydrochlorothiazide||C0020258||RXNORM||5487
+hctz||Hydrochlorothiazide||C0020258||RXNORM||5487
+spironolactone||Spironolactone||C0037982||RXNORM||9997
+aldactone||Spironolactone||C0037982||RXNORM||9997
+acetazolamide||Acetazolamide||C0000981||RXNORM||167
+mannitol||Mannitol||C0024730||RXNORM||6628
+metolazone||Metolazone||C0025636||RXNORM||6916
+zaroxolyn||Metolazone||C0025636||RXNORM||6916

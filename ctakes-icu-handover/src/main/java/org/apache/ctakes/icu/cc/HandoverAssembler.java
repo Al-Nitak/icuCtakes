@@ -44,6 +44,7 @@ import org.apache.uima.jcas.tcas.Annotation;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -61,12 +62,26 @@ final public class HandoverAssembler {
 
    static private final Gson GSON = new GsonBuilder().setPrettyPrinting().serializeNulls().create();
 
-   static private final Set<String> ABX = LexiconLoader.loadTokens( "org/apache/ctakes/icu/data/antibiotics.txt" );
-   static private final Set<String> PRESSORS = LexiconLoader.loadTokens( "org/apache/ctakes/icu/data/vasopressors.txt" );
-   static private final Set<String> SEDATIVES = LexiconLoader.loadTokens( "org/apache/ctakes/icu/data/sedatives.txt" );
-   static private final Set<String> GI_MEDS = LexiconLoader.loadTokens( "org/apache/ctakes/icu/data/gi_meds.txt" );
-   static private final Set<String> DIURETICS = LexiconLoader.loadTokens( "org/apache/ctakes/icu/data/diuretics.txt" );
-   static private final Set<String> ANTICOAG = LexiconLoader.loadTokens( "org/apache/ctakes/icu/data/anticoagulants.txt" );
+   static private final Set<String> ABX = LexiconLoader.loadCodedTokenSet( "org/apache/ctakes/icu/data/antibiotics.txt" );
+   static private final Set<String> PRESSORS = LexiconLoader.loadCodedTokenSet( "org/apache/ctakes/icu/data/vasopressors.txt" );
+   static private final Set<String> SEDATIVES = LexiconLoader.loadCodedTokenSet( "org/apache/ctakes/icu/data/sedatives.txt" );
+   static private final Set<String> GI_MEDS = LexiconLoader.loadCodedTokenSet( "org/apache/ctakes/icu/data/gi_meds.txt" );
+   static private final Set<String> DIURETICS = LexiconLoader.loadCodedTokenSet( "org/apache/ctakes/icu/data/diuretics.txt" );
+   static private final Set<String> ANTICOAG = LexiconLoader.loadCodedTokenSet( "org/apache/ctakes/icu/data/anticoagulants.txt" );
+   static private final List<LexiconLoader.CodedEntry> DRUG_LEXICON;
+   static private final List<LexiconLoader.CodedEntry> ACCESS_LEXICON
+         = LexiconLoader.loadCodedEntries( "org/apache/ctakes/icu/data/access_devices.txt" );
+
+   static {
+      final List<LexiconLoader.CodedEntry> drugs = new ArrayList<>();
+      drugs.addAll( LexiconLoader.loadCodedEntries( "org/apache/ctakes/icu/data/antibiotics.txt" ) );
+      drugs.addAll( LexiconLoader.loadCodedEntries( "org/apache/ctakes/icu/data/vasopressors.txt" ) );
+      drugs.addAll( LexiconLoader.loadCodedEntries( "org/apache/ctakes/icu/data/anticoagulants.txt" ) );
+      drugs.addAll( LexiconLoader.loadCodedEntries( "org/apache/ctakes/icu/data/sedatives.txt" ) );
+      drugs.addAll( LexiconLoader.loadCodedEntries( "org/apache/ctakes/icu/data/gi_meds.txt" ) );
+      drugs.addAll( LexiconLoader.loadCodedEntries( "org/apache/ctakes/icu/data/diuretics.txt" ) );
+      DRUG_LEXICON = Collections.unmodifiableList( drugs );
+   }
 
    static private final Pattern IMAGING = Pattern.compile(
          "\\b(?:CT|MRI|MR|echo(?:cardiogram)?|ultrasonography|ultrasound|US|X[-\\s]?ray|XR|CXR|radiograph)\\b",
@@ -264,6 +279,10 @@ final public class HandoverAssembler {
          final HandoverDocument.CultureDto dto = new HandoverDocument.CultureDto();
          dto.site = culture.getSite();
          dto.organism = culture.getOrganism();
+         dto.preferredText = culture.getPreferredText();
+         dto.cui = culture.getCui();
+         dto.codingScheme = culture.getCodingScheme();
+         dto.code = culture.getCode();
          dto.text = culture.getCoveredText();
          dto.begin = culture.getBegin();
          dto.end = culture.getEnd();
@@ -286,6 +305,7 @@ final public class HandoverAssembler {
             dto.insertDate = new HandoverDocument.TimeDto();
             dto.insertDate.text = line.getInsertTime().getCoveredText();
          }
+         fillLineFromLexicon( dto );
          doc.access.lines.add( dto );
       }
 
@@ -589,16 +609,60 @@ final public class HandoverAssembler {
       final UmlsConcept umls = OntologyConceptUtil.getUmlsConceptStream( med ).findFirst().orElse( null );
       if ( umls != null ) {
          dto.cui = umls.getCui();
+         dto.codingScheme = umls.getCodingScheme();
+         dto.code = umls.getCode();
          if ( dto.preferredText == null || dto.preferredText.isEmpty() ) {
             dto.preferredText = umls.getPreferredText();
          }
       }
+      fillMedFromLexicon( dto );
       dto.dose = extractDose( med );
       dto.strength = extractStrength( med );
       dto.frequency = extractFrequency( med );
       dto.route = extractRoute( med );
       dto.drugClass = classifyDrug( med.getCoveredText(), dto.preferredText );
       return dto;
+   }
+
+   /** When UMLS coding is thin, fill CUI/RxNorm from ICU drug lexicons. */
+   static private void fillMedFromLexicon( final HandoverDocument.MedDto dto ) {
+      final boolean missingCode = dto.cui == null || dto.cui.isEmpty()
+            || dto.codingScheme == null || dto.codingScheme.isEmpty()
+            || dto.code == null || dto.code.isEmpty();
+      if ( !missingCode ) {
+         return;
+      }
+      final String haystack = ((dto.text == null ? "" : dto.text) + " "
+            + (dto.preferredText == null ? "" : dto.preferredText)).trim();
+      final LexiconLoader.CodedEntry hit = LexiconLoader.matchCoded( haystack, DRUG_LEXICON );
+      if ( hit == null ) {
+         return;
+      }
+      if ( (dto.cui == null || dto.cui.isEmpty()) && hit.cui != null ) {
+         dto.cui = hit.cui;
+      }
+      if ( (dto.codingScheme == null || dto.codingScheme.isEmpty()) && hit.codingScheme != null ) {
+         dto.codingScheme = hit.codingScheme;
+      }
+      if ( (dto.code == null || dto.code.isEmpty()) && hit.code != null ) {
+         dto.code = hit.code;
+      }
+      if ( (dto.preferredText == null || dto.preferredText.isEmpty()) && hit.preferredText != null ) {
+         dto.preferredText = hit.preferredText;
+      }
+   }
+
+   static private void fillLineFromLexicon( final HandoverDocument.LineDto dto ) {
+      final String haystack = ((dto.text == null ? "" : dto.text) + " "
+            + (dto.type == null ? "" : dto.type)).trim();
+      final LexiconLoader.CodedEntry hit = LexiconLoader.matchCoded( haystack, ACCESS_LEXICON );
+      if ( hit == null ) {
+         return;
+      }
+      dto.preferredText = hit.preferredText;
+      dto.cui = hit.cui;
+      dto.codingScheme = hit.codingScheme;
+      dto.code = hit.code;
    }
 
    static private String classifyDrug( final String text, final String preferred ) {

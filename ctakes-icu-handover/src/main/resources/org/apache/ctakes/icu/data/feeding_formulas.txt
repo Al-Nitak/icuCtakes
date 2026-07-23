@@ -1,15 +1,15 @@
-# Feeding formulas (lowercase)
-nepro
-ensure
-glucerna
-jevity
-osmolite
-promote
-pulmocare
-twocal
-vital
-peptamen
-impact
-isocal
-boost
-resource
+# Feeding formulas: pattern||preferred (product names; coding optional)
+nepro||Nepro||||
+ensure||Ensure||||
+glucerna||Glucerna||||
+jevity||Jevity||||
+osmolite||Osmolite||||
+promote||Promote||||
+pulmocare||Pulmocare||||
+twocal||TwoCal||||
+vital||Vital||||
+peptamen||Peptamen||||
+impact||Impact||||
+isocal||Isocal||||
+boost||Boost||||
+resource||Resource||||

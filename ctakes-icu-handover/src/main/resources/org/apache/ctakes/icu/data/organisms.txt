@@ -1,21 +1,23 @@
-# Common organisms (lowercase; multi-word allowed)
-e.\s*coli
-escherichia\s*coli
-klebsiella
-pseudomonas
-staph(?:ylococcus)?\s*aureus
-mrsa
-mssa
-enterococcus
-vre
-candida
-aspergillus
-acinetobacter
-proteus
-enterobacter
-streptococcus
-pneumococcus
-haemophilus
-stenotrophomonas
-clostridium\s*difficile
-c.\s*diff
+# ICU culture organisms: pattern||preferred||CUI||codingScheme||code
+# pattern is case-insensitive regex; longer/species patterns should appear before genus.
+e.\s*coli||Escherichia coli||C0014831||SNOMEDCT_US||112283007
+escherichia\s*coli||Escherichia coli||C0014831||SNOMEDCT_US||112283007
+klebsiella(?:\s*pneumoniae)?||Klebsiella pneumoniae||C0001699||SNOMEDCT_US||56415008
+pseudomonas(?:\s*aeruginosa)?||Pseudomonas aeruginosa||C0033812||SNOMEDCT_US||52499004
+mrsa||Methicillin resistant Staphylococcus aureus||C0694840||SNOMEDCT_US||115329001
+mssa||Methicillin susceptible Staphylococcus aureus||C1444123||SNOMEDCT_US||1252251000112107
+staph(?:ylococcus)?\s*aureus||Staphylococcus aureus||C0038160||SNOMEDCT_US||3092008
+vre||Vancomycin resistant Enterococcus||C0330172||SNOMEDCT_US||113727004
+enterococcus||Enterococcus||C0014356||SNOMEDCT_US||2785000
+candida(?:\s*auris)?||Candida||C0006835||SNOMEDCT_US||10971007
+aspergillus||Aspergillus||C0004030||SNOMEDCT_US||2429008
+acinetobacter(?:\s*baumannii)?||Acinetobacter||C0001131||SNOMEDCT_US||113729004
+proteus||Proteus||C0033602||SNOMEDCT_US||85908006
+enterobacter||Enterobacter||C0014347||SNOMEDCT_US||57527007
+pneumococcus||Streptococcus pneumoniae||C0038408||SNOMEDCT_US||9861002
+streptococcus\s*pneumoniae||Streptococcus pneumoniae||C0038408||SNOMEDCT_US||9861002
+streptococcus||Streptococcus||C0038401||SNOMEDCT_US||58800005
+haemophilus(?:\s*influenzae)?||Haemophilus||C0018457||SNOMEDCT_US||12747003
+stenotrophomonas(?:\s*maltophilia)?||Stenotrophomonas maltophilia||C0318080||SNOMEDCT_US||113728007
+clostridium\s*difficile||Clostridioides difficile||C0012800||SNOMEDCT_US||59343002
+c.\s*diff(?:icile)?||Clostridioides difficile||C0012800||SNOMEDCT_US||59343002
