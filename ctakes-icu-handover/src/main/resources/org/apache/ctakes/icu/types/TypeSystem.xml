@@ -186,5 +186,37 @@
         </featureDescription>
       </features>
     </typeDescription>
+    <typeDescription>
+      <name>org.apache.ctakes.icu.type.ImagingStudyMention</name>
+      <description>Imaging study mention (CT/MRI/CXR/US/echo) with sentence-level span</description>
+      <supertypeName>org.apache.ctakes.typesystem.type.textsem.IdentifiedAnnotation</supertypeName>
+      <features>
+        <featureDescription>
+          <name>modality</name>
+          <description>CT, MRI, CXR, US, Echo, X-ray</description>
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>preferredText</name>
+          <description>Preferred modality label from lexicon</description>
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>cui</name>
+          <description>UMLS CUI</description>
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>codingScheme</name>
+          <description>Coding scheme, e.g. SNOMEDCT_US</description>
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>code</name>
+          <description>Concept code in codingScheme</description>
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+      </features>
+    </typeDescription>
   </types>
 </typeSystemDescription>

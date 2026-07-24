@@ -8,6 +8,7 @@ import org.apache.ctakes.core.util.doc.DocIdUtil;
 import org.apache.ctakes.icu.type.CultureResultMention;
 import org.apache.ctakes.icu.type.FeedingMention;
 import org.apache.ctakes.icu.type.GcsMention;
+import org.apache.ctakes.icu.type.ImagingStudyMention;
 import org.apache.ctakes.icu.type.PlanItem;
 import org.apache.ctakes.icu.type.UrineOutputMention;
 import org.apache.ctakes.icu.type.VascularAccessMention;
@@ -164,6 +165,13 @@ final public class HandoverAssembler {
          }
       }
 
+      for ( ImagingStudyMention study : JCasUtil.select( jCas, ImagingStudyMention.class ) ) {
+         if ( imagingOverlaps( doc, study.getBegin(), study.getEnd() ) ) {
+            continue;
+         }
+         doc.imaging.add( toImagingFromStudy( jCas, study, locations ) );
+      }
+
       for ( ProcedureMention proc : JCasUtil.select( jCas, ProcedureMention.class ) ) {
          final HandoverDocument.ConceptDto concept = toConcept( proc, locations );
          if ( IdentifiedAnnotationUtil.isHistoric( proc ) || inSections( proc, segments, BACKGROUND_SECTIONS ) ) {
@@ -171,7 +179,9 @@ final public class HandoverAssembler {
          }
          final HandoverDocument.EventDto event = toEvent( proc );
          doc.situation.events.add( event );
-         maybeAddImaging( jCas, doc, proc, locations );
+         if ( !imagingOverlaps( doc, proc.getBegin(), proc.getEnd() ) ) {
+            maybeAddImaging( jCas, doc, proc, locations );
+         }
       }
 
       for ( SignSymptomMention ss : JCasUtil.select( jCas, SignSymptomMention.class ) ) {
@@ -366,12 +376,7 @@ final public class HandoverAssembler {
       if ( locs != null && !locs.isEmpty() ) {
          img.bodySite = locs.get( 0 );
       }
-      for ( DiseaseDisorderMention dd : JCasUtil.select( jCas, DiseaseDisorderMention.class ) ) {
-         if ( Math.abs( dd.getBegin() - proc.getEnd() ) < 200
-               || Math.abs( proc.getBegin() - dd.getEnd() ) < 80 ) {
-            img.findings.add( toConcept( dd, locations ) );
-         }
-      }
+      attachNearbyFindings( jCas, img, locations );
       for ( TimeMention time : JCasUtil.select( jCas, TimeMention.class ) ) {
          if ( Math.abs( time.getBegin() - proc.getBegin() ) < 100 ) {
             img.date = new HandoverDocument.TimeDto();
@@ -382,7 +387,85 @@ final public class HandoverAssembler {
       doc.imaging.add( img );
    }
 
+   static private HandoverDocument.ImagingDto toImagingFromStudy(
+         final JCas jCas,
+         final ImagingStudyMention study,
+         final Map<IdentifiedAnnotation, List<String>> locations ) {
+      final HandoverDocument.ImagingDto img = new HandoverDocument.ImagingDto();
+      img.modality = study.getModality() != null ? study.getModality() : detectModality( study.getCoveredText() );
+      img.procedureText = study.getCoveredText() != null ? study.getCoveredText().trim() : null;
+      img.begin = study.getBegin();
+      img.end = study.getEnd();
+      attachCoveredFindings( jCas, img, study.getBegin(), study.getEnd(), locations );
+      if ( img.findings.isEmpty() ) {
+         attachNearbyFindings( jCas, img, locations );
+      }
+      for ( TimeMention time : JCasUtil.selectCovered( jCas, TimeMention.class, study ) ) {
+         img.date = new HandoverDocument.TimeDto();
+         img.date.text = time.getCoveredText();
+         break;
+      }
+      return img;
+   }
+
+   static private void attachCoveredFindings(
+         final JCas jCas,
+         final HandoverDocument.ImagingDto img,
+         final int begin,
+         final int end,
+         final Map<IdentifiedAnnotation, List<String>> locations ) {
+      for ( DiseaseDisorderMention dd : JCasUtil.select( jCas, DiseaseDisorderMention.class ) ) {
+         if ( dd.getBegin() >= begin && dd.getEnd() <= end ) {
+            addFindingUnique( img, toConcept( dd, locations ) );
+         }
+      }
+      for ( SignSymptomMention ss : JCasUtil.select( jCas, SignSymptomMention.class ) ) {
+         if ( ss.getBegin() >= begin && ss.getEnd() <= end ) {
+            addFindingUnique( img, toConcept( ss, locations ) );
+         }
+      }
+   }
+
+   static private void attachNearbyFindings(
+         final JCas jCas,
+         final HandoverDocument.ImagingDto img,
+         final Map<IdentifiedAnnotation, List<String>> locations ) {
+      for ( DiseaseDisorderMention dd : JCasUtil.select( jCas, DiseaseDisorderMention.class ) ) {
+         if ( Math.abs( dd.getBegin() - img.end ) < 200
+               || Math.abs( img.begin - dd.getEnd() ) < 80
+               || ( dd.getBegin() >= img.begin && dd.getEnd() <= img.end ) ) {
+            addFindingUnique( img, toConcept( dd, locations ) );
+         }
+      }
+   }
+
+   static private void addFindingUnique( final HandoverDocument.ImagingDto img,
+                                         final HandoverDocument.ConceptDto concept ) {
+      if ( concept == null || concept.text == null ) {
+         return;
+      }
+      for ( HandoverDocument.ConceptDto existing : img.findings ) {
+         if ( concept.text.equalsIgnoreCase( existing.text )
+               || ( concept.begin == existing.begin && concept.end == existing.end ) ) {
+            return;
+         }
+      }
+      img.findings.add( concept );
+   }
+
+   static private boolean imagingOverlaps( final HandoverDocument doc, final int begin, final int end ) {
+      for ( HandoverDocument.ImagingDto img : doc.imaging ) {
+         if ( begin < img.end && end > img.begin ) {
+            return true;
+         }
+      }
+      return false;
+   }
+
    static private String detectModality( final String text ) {
+      if ( text == null ) {
+         return "imaging";
+      }
       final String t = text.toUpperCase( Locale.ROOT );
       if ( t.contains( "CT" ) ) {
          return "CT";
@@ -397,7 +480,7 @@ final public class HandoverAssembler {
             || t.contains( "RADIOGRAPH" ) ) {
          return "X-ray";
       }
-      if ( t.contains( "US" ) || t.contains( "ULTRASOUND" ) ) {
+      if ( t.contains( "ULTRASOUND" ) || t.contains( "ULTRASONOGRAPHY" ) || t.contains( "POCUS" ) ) {
          return "US";
       }
       return "imaging";
