@@ -109,7 +109,8 @@ public enum RestPipelineRunner {
          return "";
       }
       synchronized ( PROCESS_LOCK ) {
-         final JCas jcas = _pool.getJCas();
+         // JCasPool.getJCas() uses timeout 0 (non-blocking); wait until a CAS is free.
+         JCas jcas = _pool.getJCas( 60_000 );
          if ( jcas == null ) {
             throw new AnalysisEngineProcessException( new Throwable( "Could not acquire JCas from pool." ) );
          }
@@ -117,12 +118,12 @@ public enum RestPipelineRunner {
             jcas.reset();
             jcas.setDocumentText( text );
             _engine.process( jcas );
-            final String resultText = formatter.getResultText( jcas );
-            _pool.releaseJCas( jcas );
-            return resultText;
+            return formatter.getResultText( jcas );
          } catch ( CASRuntimeException | AnalysisEngineProcessException multE ) {
             LOGGER.error( "Error processing text." );
             throw new AnalysisEngineProcessException( multE );
+         } finally {
+            _pool.releaseJCas( jcas );
          }
       }
    }

@@ -52,6 +52,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -92,6 +93,23 @@ final public class HandoverAssembler {
          "^[\\s,;/-]*(?:(?:and)[\\s,;/-]*)?$",
          Pattern.CASE_INSENSITIVE );
 
+   /** Characters after a med mention to scan for dose / route / frequency. */
+   static private final int MED_ATTR_WINDOW = 48;
+
+   /**
+    * ICU dose/rate immediately after a drug name, e.g. {@code 5 mg/h}, {@code 2 g},
+    * {@code 0.1 mcg/kg/min}.
+    */
+   static private final Pattern WINDOW_DOSE = Pattern.compile(
+         "(?i)(?:^|[\\s:=])(\\d+(?:\\.\\d+)?\\s*(?:mg|mcg|µg|ug|g|units?|u)"
+               + "(?:\\s*/\\s*(?:h|hr|hour|kg(?:\\s*/\\s*min)?|min))?)" );
+
+   static private final Pattern WINDOW_ROUTE = Pattern.compile(
+         "(?i)\\b(IVP|IV|PO|SQ|SC|IM|NGT|NG|SL|PR)\\b" );
+
+   static private final Pattern WINDOW_FREQUENCY = Pattern.compile(
+         "(?i)\\b(q\\d+h?|bid|tid|qid|od|bd|tds|daily|prn|as\\s+needed|/24|/12|/8)\\b" );
+
    static private final Set<String> BACKGROUND_SECTIONS = setOf(
          "background", "past medical history", "pmh", "pmhx", "patient history", "clinical history" );
    static private final Set<String> ASSESSMENT_SECTIONS = setOf(
@@ -113,6 +131,7 @@ final public class HandoverAssembler {
    static public HandoverDocument createDocument( final JCas jCas ) {
       final HandoverDocument doc = new HandoverDocument();
       doc.documentId = DocIdUtil.getDocumentID( jCas );
+      final String docText = jCas.getDocumentText();
 
       final Map<IdentifiedAnnotation, List<String>> locations = buildLocationIndex( jCas );
       final List<Segment> segments = new ArrayList<>( JCasUtil.select( jCas, Segment.class ) );
@@ -175,7 +194,7 @@ final public class HandoverAssembler {
 
       // Medications by class / section
       for ( MedicationMention med : JCasUtil.select( jCas, MedicationMention.class ) ) {
-         final HandoverDocument.MedDto medDto = toMed( med, segments );
+         final HandoverDocument.MedDto medDto = toMed( med, segments, docText );
          final String drugClass = medDto.drugClass;
          if ( "antibiotic".equals( drugClass ) || "antifungal".equals( drugClass ) ) {
             doc.access.antibiotics.add( medDto );
@@ -599,7 +618,9 @@ final public class HandoverAssembler {
       return dto;
    }
 
-   static private HandoverDocument.MedDto toMed( final MedicationMention med, final List<Segment> segments ) {
+   static private HandoverDocument.MedDto toMed( final MedicationMention med,
+                                                 final List<Segment> segments,
+                                                 final String docText ) {
       final HandoverDocument.MedDto dto = new HandoverDocument.MedDto();
       dto.text = med.getCoveredText();
       dto.begin = med.getBegin();
@@ -620,8 +641,68 @@ final public class HandoverAssembler {
       dto.strength = extractStrength( med );
       dto.frequency = extractFrequency( med );
       dto.route = extractRoute( med );
+      // Drug NER modifiers are usually absent on Tiny REST — fill from text after the span.
+      if ( isBlank( dto.dose ) || isBlank( dto.frequency ) || isBlank( dto.route ) ) {
+         fillMedAttributesFromWindow( dto, windowAfter( docText, med.getEnd(), MED_ATTR_WINDOW ) );
+      }
+      if ( isBlank( dto.dose ) && !isBlank( dto.strength ) ) {
+         dto.dose = dto.strength.trim();
+      }
       dto.drugClass = classifyDrug( med.getCoveredText(), dto.preferredText );
       return dto;
+   }
+
+   /**
+    * Parse ICU dose / route / frequency from text immediately after a medication mention.
+    * Only fills blank fields — never overwrites modifier-derived values.
+    */
+   static void fillMedAttributesFromWindow( final HandoverDocument.MedDto dto, final String window ) {
+      if ( dto == null || isBlank( window ) ) {
+         return;
+      }
+      if ( isBlank( dto.dose ) ) {
+         final Matcher doseMatcher = WINDOW_DOSE.matcher( window );
+         if ( doseMatcher.find() ) {
+            dto.dose = doseMatcher.group( 1 ).replaceAll( "\\s+", " " ).trim();
+         }
+      }
+      if ( isBlank( dto.route ) ) {
+         final Matcher routeMatcher = WINDOW_ROUTE.matcher( window );
+         if ( routeMatcher.find() ) {
+            dto.route = routeMatcher.group( 1 ).toUpperCase( Locale.ROOT );
+         }
+      }
+      if ( isBlank( dto.frequency ) ) {
+         final Matcher freqMatcher = WINDOW_FREQUENCY.matcher( window );
+         if ( freqMatcher.find() ) {
+            String freq = freqMatcher.group( 1 ).replaceAll( "\\s+", " " ).trim();
+            if ( freq.equalsIgnoreCase( "as needed" ) ) {
+               freq = "PRN";
+            } else if ( freq.equalsIgnoreCase( "prn" ) ) {
+               freq = "PRN";
+            } else if ( !freq.startsWith( "/" ) ) {
+               // keep q24h / daily casing light — normalize common tokens
+               if ( freq.equalsIgnoreCase( "daily" ) ) {
+                  freq = "daily";
+               } else {
+                  freq = freq.toLowerCase( Locale.ROOT );
+               }
+            }
+            dto.frequency = freq;
+         }
+      }
+   }
+
+   static private String windowAfter( final String docText, final int end, final int length ) {
+      if ( docText == null || end < 0 || end >= docText.length() ) {
+         return "";
+      }
+      final int stop = Math.min( docText.length(), end + Math.max( 0, length ) );
+      return docText.substring( end, stop );
+   }
+
+   static private boolean isBlank( final String value ) {
+      return value == null || value.trim().isEmpty();
    }
 
    /** When UMLS coding is thin, fill CUI/RxNorm from ICU drug lexicons. */

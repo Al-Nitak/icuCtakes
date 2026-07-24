@@ -3,9 +3,12 @@ package org.apache.ctakes.examples.pipeline;
 import org.apache.ctakes.rest.service.RestPipelineRunner;
 import org.apache.ctakes.rest.service.response.CuiListFormatter;
 import org.apache.ctakes.rest.service.response.FhirJsonFormatter;
+import org.apache.ctakes.rest.service.response.HandoverJsonFormatter;
 import org.apache.ctakes.rest.service.response.PrettyPrintFormatter;
+import org.apache.ctakes.rest.service.response.PropertyListFormatter;
 import org.apache.ctakes.rest.service.response.ResponseFormatter;
 import org.apache.ctakes.rest.service.response.UmlsJsonFormatter;
+import org.apache.ctakes.rest.service.response.XmiFormatter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -57,11 +60,14 @@ final public class ExploreTinyRestDemo {
       final RestPipelineRunner runner = RestPipelineRunner.getInstance();
 
       writeFormat( runner, text, outputDir, "pretty", new PrettyPrintFormatter(), "process_pretty.txt" );
+      writeFormat( runner, text, outputDir, "property", new PropertyListFormatter(), "process_property.txt" );
       writeFormat( runner, text, outputDir, "cui", new CuiListFormatter(), "process_cui.txt" );
       writeFormat( runner, text, outputDir, "umls", new UmlsJsonFormatter(), "process_umls.json" );
       writeFormat( runner, text, outputDir, "fhir", new FhirJsonFormatter(), "process_fhir.json" );
+      writeFormat( runner, text, outputDir, "xmi", new XmiFormatter(), "process.xmi" );
+      writeFormat( runner, text, outputDir, "handover", new HandoverJsonFormatter(), "process_handover.json" );
 
-      LOGGER.info( "Tiny REST demo wrote process_pretty.txt, process_cui.txt, process_umls.json, process_fhir.json" );
+      LOGGER.info( "Tiny REST demo wrote all formatters under {}", outputDir.getAbsolutePath() );
    }
 
    static private void writeFormat( final RestPipelineRunner runner,

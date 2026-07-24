@@ -50,6 +50,7 @@ final public class PropertyListFormatter implements ResponseFormatter {
          for ( Sentence sentence : sentences ) {
             PropertyTextWriter.writeSentence( jCas, sentence, writer );
          }
+         writer.flush();
          return stringWriter.toString();
       } catch ( IOException ioE ) {
          throw new AnalysisEngineProcessException( ioE );

@@ -1,4 +1,7 @@
-// REST test pipeline using ctakesicd2015 dictionary.
+// Local/dev Tiny REST pipeline (default). No UMLS license check.
+// Production uses TinyRestPipeline.prod.piper via:
+//   -Dctakes.rest.piper=TinyRestPipeline.prod.piper
+//   or CTAKES_REST_PIPER=TinyRestPipeline.prod.piper
 
 set WriteBanner=yes
 

@@ -74,6 +74,8 @@ public class TinyController {
          case "cui" -> RestPipelineRunner.getInstance().process( new CuiListFormatter(), text );
          case "xmi" -> RestPipelineRunner.getInstance().process( new XmiFormatter(), text );
          case "handover" -> RestPipelineRunner.getInstance().process( new HandoverJsonFormatter(), text );
+         // One pipeline pass → combined clinical + coding + FHIR + views map
+         case "map", "all", "info" -> RestPipelineRunner.getInstance().process( new InformationMapFormatter(), text );
          default -> RestPipelineRunner.getInstance().process( new FhirJsonFormatter(), text );
       };
    }

@@ -50,6 +50,7 @@ final public class PrettyPrintFormatter implements ResponseFormatter {
          for ( Sentence sentence : sentences ) {
             PrettyTextWriter.writeSentence( jCas, sentence, writer );
          }
+         writer.flush();
          return stringWriter.toString();
       } catch ( IOException ioE ) {
          throw new AnalysisEngineProcessException( ioE );
