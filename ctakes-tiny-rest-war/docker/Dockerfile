@@ -10,7 +10,8 @@ ENV PATH="${CATALINA_HOME}/bin:${PATH}"
 ENV CTAKES_REST_PIPER=TinyRestPipeline.prod.piper
 ENV JAVA_OPTS="-Xmx6g -Djava.awt.headless=true -Dctakes.rest.piper=TinyRestPipeline.prod.piper"
 
-RUN yum install -y curl ca-certificates tar gzip unzip \
+# AL2023 already has curl-minimal; installing full curl conflicts with it.
+RUN yum install -y ca-certificates tar gzip unzip \
     && yum clean all \
     && curl -fsSL "https://archive.apache.org/dist/tomcat/tomcat-10/v${TOMCAT_VERSION}/bin/apache-tomcat-${TOMCAT_VERSION}.tar.gz" \
        | tar -xz -C /opt \
