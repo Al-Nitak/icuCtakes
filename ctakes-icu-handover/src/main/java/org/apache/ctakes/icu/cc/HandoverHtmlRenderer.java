@@ -34,6 +34,7 @@ final public class HandoverHtmlRenderer {
       section( sb, null, "GI", renderGi( doc.systems.gi ) );
       section( sb, null, "GU", renderGu( doc.systems.gu ) );
       section( sb, null, "Hematology / Culture", renderHeme( doc.systems.hematology ) );
+      section( sb, null, "Labs", renderLabs( doc.systems.labs ) );
       section( sb, null, "LINE / Access", renderAccess( doc.access ) );
       section( sb, null, "Abx", renderMeds( doc.access.antibiotics ) );
       section( sb, null, "Imaging", renderImaging( doc.imaging ) );
@@ -199,14 +200,30 @@ final public class HandoverHtmlRenderer {
       appendMedTable( sb, heme.anticoagulants );
       if ( heme.cultures != null && !heme.cultures.isEmpty() ) {
          sb.append( "<h3>Cultures</h3>\n<table>\n<thead><tr>" );
-         sb.append( "<th>Site</th><th>Organism</th><th>Sensitivities</th></tr></thead>\n<tbody>\n" );
+         sb.append( "<th>Site</th><th>Organism</th><th>Status</th><th>Sensitivities</th></tr></thead>\n<tbody>\n" );
          for ( HandoverDocument.CultureDto c : heme.cultures ) {
             sb.append( "<tr><td>" ).append( esc( nullToEmpty( c.site ) ) ).append( "</td>" );
             sb.append( "<td>" ).append( esc( nullToEmpty( c.organism ) ) ).append( "</td>" );
+            sb.append( "<td>" ).append( esc( nullToEmpty( c.status ) ) ).append( "</td>" );
             sb.append( "<td>" ).append( esc( join( c.sensitivities ) ) ).append( "</td></tr>\n" );
          }
          sb.append( "</tbody></table>\n" );
       }
+      return sb.toString();
+   }
+
+   static private String renderLabs( final List<HandoverDocument.LabDto> labs ) {
+      if ( labs == null || labs.isEmpty() ) {
+         return "";
+      }
+      final StringBuilder sb = new StringBuilder();
+      sb.append( "<table>\n<thead><tr><th>Lab</th><th>Value</th><th>Unit</th></tr></thead>\n<tbody>\n" );
+      for ( HandoverDocument.LabDto lab : labs ) {
+         sb.append( "<tr><td>" ).append( esc( firstNonBlank( lab.preferredText, lab.name, lab.text ) ) ).append( "</td>" );
+         sb.append( "<td>" ).append( esc( nullToEmpty( lab.value ) ) ).append( "</td>" );
+         sb.append( "<td>" ).append( esc( nullToEmpty( lab.unit ) ) ).append( "</td></tr>\n" );
+      }
+      sb.append( "</tbody></table>\n" );
       return sb.toString();
    }
 
@@ -306,6 +323,16 @@ final public class HandoverHtmlRenderer {
          return a;
       }
       return nullToEmpty( b );
+   }
+
+   static private String firstNonBlank( final String a, final String b, final String c ) {
+      if ( a != null && !a.isBlank() ) {
+         return a;
+      }
+      if ( b != null && !b.isBlank() ) {
+         return b;
+      }
+      return nullToEmpty( c );
    }
 
    static private String nullToEmpty( final String value ) {

@@ -13,6 +13,12 @@ import static org.junit.Assert.assertTrue;
 public class ImagingLexiconTest {
 
    @Test
+   public void matchesCtPulmonaryAngio() {
+      final var lexicon = LexiconLoader.loadCodedEntries( "org/apache/ctakes/icu/data/imaging.txt" );
+      assertEquals( "CT", LexiconLoader.matchCoded( "CT pulmonary angio today", lexicon ).preferredText );
+   }
+
+   @Test
    public void matchesCtScanSentence() {
       final LexiconLoader.CodedEntry hit = LexiconLoader.matchCoded(
             "CT scan showed brain edema, no stroke or bleeding",

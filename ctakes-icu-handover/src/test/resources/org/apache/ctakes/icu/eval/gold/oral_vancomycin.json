@@ -1,0 +1,8 @@
+{
+  "antibiotics": [
+    {"text": "vancomycin", "route": "PO"}
+  ],
+  "cultures": [],
+  "imaging": [],
+  "labs": []
+}

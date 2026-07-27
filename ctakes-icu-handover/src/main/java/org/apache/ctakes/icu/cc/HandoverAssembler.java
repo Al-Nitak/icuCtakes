@@ -9,6 +9,7 @@ import org.apache.ctakes.icu.type.CultureResultMention;
 import org.apache.ctakes.icu.type.FeedingMention;
 import org.apache.ctakes.icu.type.GcsMention;
 import org.apache.ctakes.icu.type.ImagingStudyMention;
+import org.apache.ctakes.icu.type.LabValueMention;
 import org.apache.ctakes.icu.type.PlanItem;
 import org.apache.ctakes.icu.type.UrineOutputMention;
 import org.apache.ctakes.icu.type.VascularAccessMention;
@@ -37,6 +38,7 @@ import org.apache.ctakes.typesystem.type.textsem.ProcedureMention;
 import org.apache.ctakes.typesystem.type.textsem.SignSymptomMention;
 import org.apache.ctakes.typesystem.type.textsem.TimeMention;
 import org.apache.ctakes.typesystem.type.textspan.Segment;
+import org.apache.ctakes.typesystem.type.textspan.Sentence;
 import org.apache.uima.fit.util.JCasUtil;
 import org.apache.uima.jcas.JCas;
 import org.apache.uima.jcas.cas.StringArray;
@@ -70,6 +72,7 @@ final public class HandoverAssembler {
    static private final Set<String> GI_MEDS = LexiconLoader.loadCodedTokenSet( "org/apache/ctakes/icu/data/gi_meds.txt" );
    static private final Set<String> DIURETICS = LexiconLoader.loadCodedTokenSet( "org/apache/ctakes/icu/data/diuretics.txt" );
    static private final Set<String> ANTICOAG = LexiconLoader.loadCodedTokenSet( "org/apache/ctakes/icu/data/anticoagulants.txt" );
+   static private final Set<String> THROMBOLYTICS = LexiconLoader.loadCodedTokenSet( "org/apache/ctakes/icu/data/thrombolytics.txt" );
    static private final List<LexiconLoader.CodedEntry> DRUG_LEXICON;
    static private final List<LexiconLoader.CodedEntry> ACCESS_LEXICON
          = LexiconLoader.loadCodedEntries( "org/apache/ctakes/icu/data/access_devices.txt" );
@@ -96,6 +99,12 @@ final public class HandoverAssembler {
 
    /** Characters after a med mention to scan for dose / route / frequency. */
    static private final int MED_ATTR_WINDOW = 48;
+   /** Characters before a med mention to scan for route (e.g. oral vancomycin). */
+   static private final int MED_ATTR_WINDOW_BEFORE = 32;
+
+   static private final Pattern FINDING_CONTINUATION = Pattern.compile(
+         "^(?:it\\s+)?(?:showed|revealed|demonstrated|found|reported|with)\\b",
+         Pattern.CASE_INSENSITIVE );
 
    /**
     * ICU dose/rate immediately after a drug name, e.g. {@code 5 mg/h}, {@code 2 g},
@@ -106,7 +115,7 @@ final public class HandoverAssembler {
                + "(?:\\s*/\\s*(?:h|hr|hour|kg(?:\\s*/\\s*min)?|min))?)" );
 
    static private final Pattern WINDOW_ROUTE = Pattern.compile(
-         "(?i)\\b(IVP|IV|PO|SQ|SC|IM|NGT|NG|SL|PR)\\b" );
+         "(?i)\\b(IVP|IV|PO|SQ|SC|IM|NGT|NG|SL|PR|oral|by\\s+mouth)\\b" );
 
    static private final Pattern WINDOW_FREQUENCY = Pattern.compile(
          "(?i)\\b(q\\d+h?|bid|tid|qid|od|bd|tds|daily|prn|as\\s+needed|/24|/12|/8)\\b" );
@@ -229,6 +238,21 @@ final public class HandoverAssembler {
          }
       }
 
+      for ( LabValueMention labVal : JCasUtil.select( jCas, LabValueMention.class ) ) {
+         final HandoverDocument.LabDto dto = new HandoverDocument.LabDto();
+         dto.name = labVal.getLabName();
+         dto.value = labVal.getValue();
+         dto.unit = labVal.getUnit();
+         dto.text = labVal.getCoveredText();
+         dto.preferredText = labVal.getPreferredText();
+         dto.cui = labVal.getCui();
+         dto.codingScheme = labVal.getCodingScheme();
+         dto.code = labVal.getCode();
+         dto.begin = labVal.getBegin();
+         dto.end = labVal.getEnd();
+         doc.systems.labs.add( dto );
+      }
+
       // CVS status inference
       final boolean onPressors = doc.systems.cvs.medications.stream()
             .anyMatch( m -> "vasopressor".equals( m.drugClass ) );
@@ -308,6 +332,7 @@ final public class HandoverAssembler {
          final HandoverDocument.CultureDto dto = new HandoverDocument.CultureDto();
          dto.site = culture.getSite();
          dto.organism = culture.getOrganism();
+         dto.status = culture.getStatus();
          dto.preferredText = culture.getPreferredText();
          dto.cui = culture.getCui();
          dto.codingScheme = culture.getCodingScheme();
@@ -355,6 +380,7 @@ final public class HandoverAssembler {
 
       doc.situation.events = mergeAdjacentSituationEvents( jCas, doc.situation.events );
       doc.situation.events.sort( Comparator.comparingInt( e -> e.begin ) );
+      doc.imaging = dedupeImaging( doc.imaging );
       dedupeAssessment( doc );
       return doc;
    }
@@ -372,11 +398,12 @@ final public class HandoverAssembler {
       img.begin = proc.getBegin();
       img.end = proc.getEnd();
       img.modality = detectModality( text );
+      img.bodySite = parseBodySiteFromText( text );
       final List<String> locs = locations.get( proc );
-      if ( locs != null && !locs.isEmpty() ) {
+      if ( img.bodySite == null && locs != null && !locs.isEmpty() ) {
          img.bodySite = locs.get( 0 );
       }
-      attachNearbyFindings( jCas, img, locations );
+      attachSentenceFindings( jCas, img, locations );
       for ( TimeMention time : JCasUtil.select( jCas, TimeMention.class ) ) {
          if ( Math.abs( time.getBegin() - proc.getBegin() ) < 100 ) {
             img.date = new HandoverDocument.TimeDto();
@@ -396,16 +423,84 @@ final public class HandoverAssembler {
       img.procedureText = study.getCoveredText() != null ? study.getCoveredText().trim() : null;
       img.begin = study.getBegin();
       img.end = study.getEnd();
-      attachCoveredFindings( jCas, img, study.getBegin(), study.getEnd(), locations );
-      if ( img.findings.isEmpty() ) {
-         attachNearbyFindings( jCas, img, locations );
-      }
+      img.bodySite = parseBodySiteFromText( study.getCoveredText() );
+      attachSentenceFindings( jCas, img, locations );
       for ( TimeMention time : JCasUtil.selectCovered( jCas, TimeMention.class, study ) ) {
          img.date = new HandoverDocument.TimeDto();
          img.date.text = time.getCoveredText();
          break;
       }
       return img;
+   }
+
+   static private void attachSentenceFindings(
+         final JCas jCas,
+         final HandoverDocument.ImagingDto img,
+         final Map<IdentifiedAnnotation, List<String>> locations ) {
+      final List<Sentence> sentences = new ArrayList<>( JCasUtil.select( jCas, Sentence.class ) );
+      Sentence primary = null;
+      for ( Sentence sentence : sentences ) {
+         if ( img.begin < sentence.getEnd() && img.end > sentence.getBegin() ) {
+            primary = sentence;
+            break;
+         }
+      }
+      if ( primary == null ) {
+         return;
+      }
+      attachCoveredFindings( jCas, img, primary.getBegin(), primary.getEnd(), locations );
+      final int idx = sentences.indexOf( primary );
+      if ( idx >= 0 && idx + 1 < sentences.size() ) {
+         final Sentence next = sentences.get( idx + 1 );
+         final String nextText = next.getCoveredText();
+         if ( nextText != null && FINDING_CONTINUATION.matcher( nextText.trim() ).find() ) {
+            attachCoveredFindings( jCas, img, next.getBegin(), next.getEnd(), locations );
+         }
+      }
+   }
+
+   static private List<HandoverDocument.ImagingDto> dedupeImaging(
+         final List<HandoverDocument.ImagingDto> imaging ) {
+      if ( imaging.size() <= 1 ) {
+         return imaging;
+      }
+      final List<HandoverDocument.ImagingDto> sorted = new ArrayList<>( imaging );
+      sorted.sort( ( a, b ) -> {
+         final int lenA = a.end - a.begin;
+         final int lenB = b.end - b.begin;
+         if ( lenB != lenA ) {
+            return Integer.compare( lenB, lenA );
+         }
+         return Integer.compare( a.begin, b.begin );
+      } );
+      final List<HandoverDocument.ImagingDto> kept = new ArrayList<>();
+      for ( HandoverDocument.ImagingDto img : sorted ) {
+         boolean overlaps = false;
+         for ( HandoverDocument.ImagingDto existing : kept ) {
+            if ( img.begin < existing.end && img.end > existing.begin ) {
+               overlaps = true;
+               break;
+            }
+         }
+         if ( !overlaps ) {
+            kept.add( img );
+         }
+      }
+      kept.sort( Comparator.comparingInt( i -> i.begin ) );
+      return kept;
+   }
+
+   static private String parseBodySiteFromText( final String text ) {
+      if ( text == null ) {
+         return null;
+      }
+      final Matcher matcher = Pattern.compile(
+            "(?i)(?:CT|MRI|MR)\\s+(brain|head|chest|abd(?:omen)?|spine|pulmonary(?:\\s+angio)?|angio)\\b" )
+            .matcher( text );
+      if ( matcher.find() ) {
+         return matcher.group( 1 ).toLowerCase( Locale.ROOT );
+      }
+      return null;
    }
 
    static private void attachCoveredFindings(
@@ -422,19 +517,6 @@ final public class HandoverAssembler {
       for ( SignSymptomMention ss : JCasUtil.select( jCas, SignSymptomMention.class ) ) {
          if ( ss.getBegin() >= begin && ss.getEnd() <= end ) {
             addFindingUnique( img, toConcept( ss, locations ) );
-         }
-      }
-   }
-
-   static private void attachNearbyFindings(
-         final JCas jCas,
-         final HandoverDocument.ImagingDto img,
-         final Map<IdentifiedAnnotation, List<String>> locations ) {
-      for ( DiseaseDisorderMention dd : JCasUtil.select( jCas, DiseaseDisorderMention.class ) ) {
-         if ( Math.abs( dd.getBegin() - img.end ) < 200
-               || Math.abs( img.begin - dd.getEnd() ) < 80
-               || ( dd.getBegin() >= img.begin && dd.getEnd() <= img.end ) ) {
-            addFindingUnique( img, toConcept( dd, locations ) );
          }
       }
    }
@@ -728,6 +810,10 @@ final public class HandoverAssembler {
       if ( isBlank( dto.dose ) || isBlank( dto.frequency ) || isBlank( dto.route ) ) {
          fillMedAttributesFromWindow( dto, windowAfter( docText, med.getEnd(), MED_ATTR_WINDOW ) );
       }
+      if ( isBlank( dto.route ) ) {
+         fillMedAttributesFromBeforeWindow( dto, windowBefore( docText, med.getBegin(), MED_ATTR_WINDOW_BEFORE ) );
+      }
+      inferRouteFromMedText( dto );
       if ( isBlank( dto.dose ) && !isBlank( dto.strength ) ) {
          dto.dose = dto.strength.trim();
       }
@@ -752,7 +838,7 @@ final public class HandoverAssembler {
       if ( isBlank( dto.route ) ) {
          final Matcher routeMatcher = WINDOW_ROUTE.matcher( window );
          if ( routeMatcher.find() ) {
-            dto.route = routeMatcher.group( 1 ).toUpperCase( Locale.ROOT );
+            dto.route = normalizeRoute( routeMatcher.group( 1 ) );
          }
       }
       if ( isBlank( dto.frequency ) ) {
@@ -776,12 +862,60 @@ final public class HandoverAssembler {
       }
    }
 
+   static void inferRouteFromMedText( final HandoverDocument.MedDto dto ) {
+      if ( dto == null || !isBlank( dto.route ) || isBlank( dto.text ) ) {
+         return;
+      }
+      final String t = dto.text.toLowerCase( Locale.ROOT );
+      if ( t.contains( "oral" ) || t.contains( "by mouth" ) ) {
+         dto.route = "PO";
+      } else if ( t.matches( ".*\\biv\\b.*" ) ) {
+         dto.route = "IV";
+      }
+   }
+
+   /**
+    * Parse route from text immediately before a medication mention (e.g. oral vancomycin).
+    */
+   static void fillMedAttributesFromBeforeWindow( final HandoverDocument.MedDto dto, final String window ) {
+      if ( dto == null || isBlank( window ) || !isBlank( dto.route ) ) {
+         return;
+      }
+      final Matcher routeMatcher = WINDOW_ROUTE.matcher( window );
+      String route = null;
+      while ( routeMatcher.find() ) {
+         route = routeMatcher.group( 1 );
+      }
+      if ( route != null ) {
+         dto.route = normalizeRoute( route );
+      }
+   }
+
+   static private String normalizeRoute( final String route ) {
+      if ( route == null ) {
+         return null;
+      }
+      final String r = route.replaceAll( "\\s+", " " ).trim();
+      if ( r.equalsIgnoreCase( "oral" ) || r.equalsIgnoreCase( "by mouth" ) ) {
+         return "PO";
+      }
+      return r.toUpperCase( Locale.ROOT );
+   }
+
    static private String windowAfter( final String docText, final int end, final int length ) {
       if ( docText == null || end < 0 || end >= docText.length() ) {
          return "";
       }
       final int stop = Math.min( docText.length(), end + Math.max( 0, length ) );
       return docText.substring( end, stop );
+   }
+
+   static private String windowBefore( final String docText, final int begin, final int length ) {
+      if ( docText == null || begin <= 0 ) {
+         return "";
+      }
+      final int start = Math.max( 0, begin - Math.max( 0, length ) );
+      return docText.substring( start, begin );
    }
 
    static private boolean isBlank( final String value ) {
@@ -832,6 +966,9 @@ final public class HandoverAssembler {
    static private String classifyDrug( final String text, final String preferred ) {
       final String combined = ((text == null ? "" : text) + " " + (preferred == null ? "" : preferred))
             .toLowerCase( Locale.ROOT );
+      if ( LexiconLoader.textContainsAny( combined, THROMBOLYTICS ) ) {
+         return "thrombolytic";
+      }
       if ( LexiconLoader.textContainsAny( combined, ABX ) ) {
          // crude antifungal check
          if ( combined.contains( "azole" ) || combined.contains( "fungin" ) || combined.contains( "amphotericin" )

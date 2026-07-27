@@ -1,0 +1,21 @@
+# P0 ICU labs: pattern||preferred||CUI||codingScheme||code
+# Value is captured by LabValueAnnotator after the matched name.
+\bcreatinine\b||Creatinine||C0016754||SNOMEDCT_US||70901006
+\bcr\b||Creatinine||C0016754||SNOMEDCT_US||70901006
+\bbun\b||Blood urea nitrogen||C0005845||SNOMEDCT_US||113075003
+\burea\b||Blood urea nitrogen||C0005845||SNOMEDCT_US||113075003
+\bsodium\b||Sodium||C0037473||SNOMEDCT_US||39972003
+\bna\b||Sodium||C0037473||SNOMEDCT_US||39972003
+\bpotassium\b||Potassium||C0032821||SNOMEDCT_US||88480006
+\bk\b||Potassium||C0032821||SNOMEDCT_US||88480006
+\bhemoglobin\b||Hemoglobin||C0019046||SNOMEDCT_US||38082009
+\bhgb\b||Hemoglobin||C0019046||SNOMEDCT_US||38082009
+\bhb\b||Hemoglobin||C0019046||SNOMEDCT_US||38082009
+\bwbc\b||White blood cell count||C0023508||SNOMEDCT_US||767002
+\blactate\b||Lactate||C0022921||SNOMEDCT_US||3926003
+\bcrp\b||C-reactive protein||C0201657||SNOMEDCT_US||55235003
+\bprocalcitonin\b||Procalcitonin||C1535922||SNOMEDCT_US||418752001
+\binr\b||INR||C0525032||SNOMEDCT_US||165581004
+\baptt\b||aPTT||C0030605||SNOMEDCT_US||396451008
+\bptt\b||aPTT||C0030605||SNOMEDCT_US||396451008
+\bplatelets?\b||Platelet count||C0032181||SNOMEDCT_US||61928009

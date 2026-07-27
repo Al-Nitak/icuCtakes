@@ -138,6 +138,53 @@
           <description>Sensitivity tokens</description>
           <rangeTypeName>uima.cas.StringArray</rangeTypeName>
         </featureDescription>
+        <featureDescription>
+          <name>status</name>
+          <description>Culture status when no organism, e.g. sent, pending, no_growth</description>
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+      </features>
+    </typeDescription>
+    <typeDescription>
+      <name>org.apache.ctakes.icu.type.LabValueMention</name>
+      <description>Laboratory test with numeric value</description>
+      <supertypeName>org.apache.ctakes.typesystem.type.textsem.IdentifiedAnnotation</supertypeName>
+      <features>
+        <featureDescription>
+          <name>labName</name>
+          <description>Normalized lab name</description>
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>value</name>
+          <description>Numeric lab value as text</description>
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>unit</name>
+          <description>Unit if present</description>
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>preferredText</name>
+          <description>Preferred lab label from lexicon</description>
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>cui</name>
+          <description>UMLS CUI</description>
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>codingScheme</name>
+          <description>Coding scheme</description>
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
+        <featureDescription>
+          <name>code</name>
+          <description>Concept code</description>
+          <rangeTypeName>uima.cas.String</rangeTypeName>
+        </featureDescription>
       </features>
     </typeDescription>
     <typeDescription>

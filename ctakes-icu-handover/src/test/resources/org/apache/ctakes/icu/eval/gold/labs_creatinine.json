@@ -1,0 +1,9 @@
+{
+  "antibiotics": [],
+  "cultures": [],
+  "imaging": [],
+  "labs": [
+    {"name": "creatinine", "value": "3"},
+    {"name": "CRP", "value": "120"}
+  ]
+}

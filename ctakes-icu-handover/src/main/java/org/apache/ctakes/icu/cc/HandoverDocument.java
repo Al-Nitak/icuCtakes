@@ -97,6 +97,7 @@ public class HandoverDocument {
       public GiDto gi = new GiDto();
       public GuDto gu = new GuDto();
       public HematologyDto hematology = new HematologyDto();
+      public List<LabDto> labs = new ArrayList<>();
    }
 
    public static class CnsDto {
@@ -164,9 +165,23 @@ public class HandoverDocument {
       public List<CultureDto> cultures = new ArrayList<>();
    }
 
+   public static class LabDto {
+      public String name;
+      public String value;
+      public String unit;
+      public String text;
+      public String preferredText;
+      public String cui;
+      public String codingScheme;
+      public String code;
+      public int begin;
+      public int end;
+   }
+
    public static class CultureDto {
       public String site;
       public String organism;
+      public String status;
       public String preferredText;
       public String cui;
       public String codingScheme;

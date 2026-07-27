@@ -1,5 +1,7 @@
-# Culture sites (lowercase)
+# Culture sites (regex patterns)
+blood\s+culture||blood culture
 blood
+urine\s+culture||urine culture
 urine
 sputum
 bal
@@ -13,5 +15,5 @@ tip
 stool
 throat
 nasal
-mrsa
 swab
+tracheal

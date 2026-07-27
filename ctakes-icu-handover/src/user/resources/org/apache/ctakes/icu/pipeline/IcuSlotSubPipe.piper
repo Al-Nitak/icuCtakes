@@ -7,4 +7,5 @@ add org.apache.ctakes.icu.ae.CultureResultAnnotator
 add org.apache.ctakes.icu.ae.FeedingAnnotator
 add org.apache.ctakes.icu.ae.UrineOutputAnnotator
 add org.apache.ctakes.icu.ae.ImagingAnnotator
+add org.apache.ctakes.icu.ae.LabValueAnnotator
 add org.apache.ctakes.icu.ae.PlanItemAnnotator

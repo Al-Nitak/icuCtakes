@@ -1,0 +1,8 @@
+{
+  "antibiotics": [],
+  "cultures": [
+    {"organism": "Pseudomonas", "site": "blood", "sensContains": ["sensitive"]}
+  ],
+  "imaging": [],
+  "labs": []
+}

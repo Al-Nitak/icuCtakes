@@ -1,0 +1,6 @@
+# Thrombolytics (not anticoagulants for handover classification)
+alteplase||Alteplase||C0032143||RXNORM||8410
+tpa||Alteplase||C0032143||RXNORM||8410
+tenecteplase||Tenecteplase||C0079419||RXNORM||259280
+tnk||Tenecteplase||C0079419||RXNORM||259280
+reteplase||Reteplase||C0724575||RXNORM||237159

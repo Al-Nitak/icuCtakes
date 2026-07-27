@@ -1,0 +1,9 @@
+{
+  "antibiotics": [],
+  "cultures": [],
+  "imaging": [
+    {"modality": "CT", "mustFind": ["infarct"], "mustNotFind": ["UTI", "anemia"]},
+    {"modality": "MRI", "mustFind": ["infarction"]}
+  ],
+  "labs": []
+}

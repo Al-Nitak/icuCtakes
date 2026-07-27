@@ -63,6 +63,21 @@ public class HandoverAssemblerDoseTest {
    }
 
    @Test
+   public void parsesOralVancomycinRouteFromBeforeWindow() {
+      final HandoverDocument.MedDto dto = new HandoverDocument.MedDto();
+      HandoverAssembler.fillMedAttributesFromBeforeWindow( dto, "taking oral " );
+      assertEquals( "PO", dto.route );
+   }
+
+   @Test
+   public void infersOralRouteFromMedText() {
+      final HandoverDocument.MedDto dto = new HandoverDocument.MedDto();
+      dto.text = "oral vancomycin";
+      HandoverAssembler.inferRouteFromMedText( dto );
+      assertEquals( "PO", dto.route );
+   }
+
+   @Test
    public void doesNotOverwriteExistingModifierValues() {
       final HandoverDocument.MedDto dto = new HandoverDocument.MedDto();
       dto.dose = "10 mg";

@@ -1,5 +1,8 @@
 # Imaging studies: pattern||modality||CUI||SNOMEDCT_US||code
 # Prefer longer / more specific patterns first (LexiconLoader.matchCoded is first-match).
+\bCT\s*pulmonary\s+angio\b||CT||C0040405||SNOMEDCT_US||77477000
+\bCT\s*angiography\b||CT||C0040405||SNOMEDCT_US||77477000
+\bCT\s*angio\b||CT||C0040405||SNOMEDCT_US||77477000
 \bCT\s*scan\b||CT||C0040405||SNOMEDCT_US||77477000
 \bCT\s*head\b||CT||C0040405||SNOMEDCT_US||77477000
 \bCT\s*brain\b||CT||C0040405||SNOMEDCT_US||77477000

@@ -21,5 +21,3 @@ ticagrelor||Ticagrelor||C1999375||RXNORM||1116632
 brilinta||Ticagrelor||C1999375||RXNORM||1116632
 prasugrel||Prasugrel||C1579281||RXNORM||613391
 effient||Prasugrel||C1579281||RXNORM||613391
-alteplase||Alteplase||C0032143||RXNORM||8410
-tpa||Alteplase||C0032143||RXNORM||8410
