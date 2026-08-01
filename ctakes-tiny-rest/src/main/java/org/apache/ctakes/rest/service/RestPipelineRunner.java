@@ -35,6 +35,8 @@ import org.apache.uima.util.CasCreationUtils;
 import org.apache.uima.util.JCasPool;
 
 import java.io.IOException;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * @author SPF , chip-nlp
@@ -52,6 +54,7 @@ public enum RestPipelineRunner {
 
    /** Default (local/dev) piper — typically no-UMLS. */
    static private final String DEFAULT_REST_PIPER = "TinyRestPipeline.piper";
+   static private final String PRE_ANESTHESIA_PIPER = "TinyRestPipeline.pre_anesthesia.piper";
 
    /**
     * Override with {@code -Dctakes.rest.piper=TinyRestPipeline.prod.piper}
@@ -62,26 +65,19 @@ public enum RestPipelineRunner {
 
    static private final Object PROCESS_LOCK = new Object();
 
-   private final AnalysisEngine _engine;
-   private final JCasPool _pool;
-   private final String _piperPath;
+   private final Map<String, EngineBundle> _bundles = new ConcurrentHashMap<>();
+   private final String _defaultPiperPath;
 
    RestPipelineRunner() {
-      _piperPath = resolvePiperPath();
+      _defaultPiperPath = resolvePiperPath();
       try {
          // Workaround https://github.com/apache/uima-uimaj/issues/234
          // https://github.com/ClearTK/cleartk/issues/470
          CasCreationUtils.createCas();
-         // Enum constructors cannot reference non-constant static fields (e.g. LOGGER).
          LoggerFactory.getLogger( "RestPipelineRunner" )
-               .info( "Loading REST pipeline from piper: {}", _piperPath );
-         final PiperFileReader reader = new PiperFileReader( _piperPath );
-         final PipelineBuilder builder = reader.getBuilder();
-
-         final AnalysisEngineDescription pipeline = builder.getAnalysisEngineDesc();
-         _engine = UIMAFramework.produceAnalysisEngine( pipeline );
-         _pool = new JCasPool( 2, _engine );
-      } catch ( IOException | UIMAException multE ) {
+               .info( "Loading default REST pipeline from piper: {}", _defaultPiperPath );
+         _bundles.put( "icu", loadBundle( _defaultPiperPath ) );
+      } catch ( IOException | UIMAException | RuntimeException multE ) {
          LoggerFactory.getLogger( "RestPipelineRunner" ).error( multE.getMessage() );
          throw new ExceptionInInitializerError( multE );
       }
@@ -103,30 +99,84 @@ public enum RestPipelineRunner {
       return DEFAULT_REST_PIPER;
    }
 
+   static private String normalizePack( final String pack ) {
+      if ( pack == null || pack.isBlank() ) {
+         return "icu";
+      }
+      final String key = pack.trim().toLowerCase();
+      if ( "pre_anesthesia".equals( key ) || "pre-anesthesia".equals( key ) || "anesthesia".equals( key ) ) {
+         return "pre_anesthesia";
+      }
+      return "icu";
+   }
+
+   private EngineBundle bundleFor( final String pack ) throws AnalysisEngineProcessException {
+      final String key = normalizePack( pack );
+      try {
+         return _bundles.computeIfAbsent( key, k -> {
+            try {
+               final String piper = "pre_anesthesia".equals( k ) ? PRE_ANESTHESIA_PIPER : _defaultPiperPath;
+               LOGGER.info( "Loading REST pipeline pack={} from piper: {}", k, piper );
+               return loadBundle( piper );
+            } catch ( IOException | UIMAException e ) {
+               throw new RuntimeException( e );
+            }
+         } );
+      } catch ( RuntimeException e ) {
+         final Throwable cause = e.getCause() != null ? e.getCause() : e;
+         throw new AnalysisEngineProcessException( cause );
+      }
+   }
+
+   static private EngineBundle loadBundle( final String piperPath ) throws IOException, UIMAException {
+      final PiperFileReader reader = new PiperFileReader( piperPath );
+      final PipelineBuilder builder = reader.getBuilder();
+      final AnalysisEngineDescription pipeline = builder.getAnalysisEngineDesc();
+      final AnalysisEngine engine = UIMAFramework.produceAnalysisEngine( pipeline );
+      final JCasPool pool = new JCasPool( 2, engine );
+      return new EngineBundle( engine, pool, piperPath );
+   }
+
    public String process( final ResponseFormatter formatter, final String text )
+         throws AnalysisEngineProcessException {
+      return process( formatter, text, "icu" );
+   }
+
+   public String process( final ResponseFormatter formatter, final String text, final String pack )
          throws AnalysisEngineProcessException {
       if ( text == null || text.trim().isEmpty() ) {
          return "";
       }
+      final EngineBundle bundle = bundleFor( pack );
       synchronized ( PROCESS_LOCK ) {
          // JCasPool.getJCas() uses timeout 0 (non-blocking); wait until a CAS is free.
-         JCas jcas = _pool.getJCas( 60_000 );
+         JCas jcas = bundle.pool.getJCas( 60_000 );
          if ( jcas == null ) {
             throw new AnalysisEngineProcessException( new Throwable( "Could not acquire JCas from pool." ) );
          }
          try {
             jcas.reset();
             jcas.setDocumentText( text );
-            _engine.process( jcas );
+            bundle.engine.process( jcas );
             return formatter.getResultText( jcas );
          } catch ( CASRuntimeException | AnalysisEngineProcessException multE ) {
-            LOGGER.error( "Error processing text." );
+            LOGGER.error( "Error processing text (pack={}).", normalizePack( pack ) );
             throw new AnalysisEngineProcessException( multE );
          } finally {
-            _pool.releaseJCas( jcas );
+            bundle.pool.releaseJCas( jcas );
          }
       }
    }
 
+   private static final class EngineBundle {
+      private final AnalysisEngine engine;
+      private final JCasPool pool;
+      private final String piperPath;
 
+      private EngineBundle( final AnalysisEngine engine, final JCasPool pool, final String piperPath ) {
+         this.engine = engine;
+         this.pool = pool;
+         this.piperPath = piperPath;
+      }
+   }
 }
