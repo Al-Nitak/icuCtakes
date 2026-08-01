@@ -1,0 +1,18 @@
+// Pre-anesthesia Tiny REST pipeline — sectionizes with PreAnesthesiaSectionRegex.bsv.
+// Selected at runtime via ?pack=pre_anesthesia (see TinyController / RestPipelineRunner).
+// Shares UMLS/dictionary NER with the default ICU pipeline.
+
+set WriteBanner=yes
+set SectionsBsv=org/apache/ctakes/icu/sections/PreAnesthesiaSectionRegex.bsv
+
+load FullTokenizerPipeline
+add ContextDependentTokenizerAnnotator
+addDescription POSTagger
+load ChunkerSubPipe
+
+set LookupXml=resources/org/apache/ctakes/dictionary/lookup/fast/sno_rx_16ab_no_umls.xml
+add DefaultJCasTermAnnotator LookupXml=resources/org/apache/ctakes/dictionary/lookup/fast/sno_rx_16ab_no_umls.xml
+
+add org.apache.ctakes.drugner.ae.DrugMentionAnnotator
+
+load AttributeCleartkSubPipe

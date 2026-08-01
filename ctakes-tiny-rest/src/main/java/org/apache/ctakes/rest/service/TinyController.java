@@ -62,21 +62,24 @@ public class TinyController {
    @RequestMapping( value = "/process", method = RequestMethod.POST )
    @ResponseBody
    public String processText( @RequestBody final String text,
-                              @RequestParam( "format" ) final Optional<String> responseFormat )
+                              @RequestParam( "format" ) final Optional<String> responseFormat,
+                              @RequestParam( "pack" ) final Optional<String> pack )
          throws AnalysisEngineProcessException {
 //      LOGGER.info( "Processing " + text );
       final String format = responseFormat.orElse( "default" ).toLowerCase();
+      final String sectionPack = pack.orElse( "icu" );
+      LOGGER.info( "Processing format={} pack={} ({} chars)", format, sectionPack, text == null ? 0 : text.length() );
       return switch ( format ) {
-         case "fhir" -> RestPipelineRunner.getInstance().process( new FhirJsonFormatter(), text );
-         case "pretty" -> RestPipelineRunner.getInstance().process( new PrettyPrintFormatter(), text );
-         case "property" -> RestPipelineRunner.getInstance().process( new PropertyListFormatter(), text );
-         case "umls" -> RestPipelineRunner.getInstance().process( new UmlsJsonFormatter(), text );
-         case "cui" -> RestPipelineRunner.getInstance().process( new CuiListFormatter(), text );
-         case "xmi" -> RestPipelineRunner.getInstance().process( new XmiFormatter(), text );
-         case "handover" -> RestPipelineRunner.getInstance().process( new HandoverJsonFormatter(), text );
+         case "fhir" -> RestPipelineRunner.getInstance().process( new FhirJsonFormatter(), text, sectionPack );
+         case "pretty" -> RestPipelineRunner.getInstance().process( new PrettyPrintFormatter(), text, sectionPack );
+         case "property" -> RestPipelineRunner.getInstance().process( new PropertyListFormatter(), text, sectionPack );
+         case "umls" -> RestPipelineRunner.getInstance().process( new UmlsJsonFormatter(), text, sectionPack );
+         case "cui" -> RestPipelineRunner.getInstance().process( new CuiListFormatter(), text, sectionPack );
+         case "xmi" -> RestPipelineRunner.getInstance().process( new XmiFormatter(), text, sectionPack );
+         case "handover" -> RestPipelineRunner.getInstance().process( new HandoverJsonFormatter(), text, sectionPack );
          // One pipeline pass → combined clinical + coding + FHIR + views map
-         case "map", "all", "info" -> RestPipelineRunner.getInstance().process( new InformationMapFormatter(), text );
-         default -> RestPipelineRunner.getInstance().process( new FhirJsonFormatter(), text );
+         case "map", "all", "info" -> RestPipelineRunner.getInstance().process( new InformationMapFormatter(), text, sectionPack );
+         default -> RestPipelineRunner.getInstance().process( new FhirJsonFormatter(), text, sectionPack );
       };
    }
 
