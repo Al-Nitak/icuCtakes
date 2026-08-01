@@ -1,11 +1,14 @@
-// Pre-anesthesia Tiny REST pipeline — sectionizes with PreAnesthesiaSectionRegex.bsv.
+// Pre-anesthesia Tiny REST pipeline — same NER stack as TinyRestPipeline.piper.
 // Selected at runtime via ?pack=pre_anesthesia (see TinyController / RestPipelineRunner).
-// Shares UMLS/dictionary NER with the default ICU pipeline.
+//
+// Keep this piper structurally identical to the ICU TinyRestPipeline.piper so Drug NER /
+// ClearTK attributes stay stable. Specialty section headers are applied in Rails
+// (EntityAligner + PreAnesthesiaSectionRegex.bsv); do NOT switch to FullTokenizerPipeline
+// here — BsvRegexSectionizer + bare DrugMentionAnnotator caused IndexOutOfBoundsException.
 
 set WriteBanner=yes
-set SectionsBsv=org/apache/ctakes/icu/sections/PreAnesthesiaSectionRegex.bsv
 
-load FullTokenizerPipeline
+load DefaultTokenizerPipeline
 add ContextDependentTokenizerAnnotator
 addDescription POSTagger
 load ChunkerSubPipe
@@ -13,6 +16,8 @@ load ChunkerSubPipe
 set LookupXml=resources/org/apache/ctakes/dictionary/lookup/fast/sno_rx_16ab_no_umls.xml
 add DefaultJCasTermAnnotator LookupXml=resources/org/apache/ctakes/dictionary/lookup/fast/sno_rx_16ab_no_umls.xml
 
-add org.apache.ctakes.drugner.ae.DrugMentionAnnotator
+// Dose / route / frequency modifiers — same params as ICU TinyRestPipeline.piper.
+add org.apache.ctakes.drugner.ae.DrugMentionAnnotator DISTANCE="1" DISTANCE_ANN_TYPE=org.apache.ctakes.typesystem.type.textspan.Sentence STATUS_BOUNDARY_ANN_TYPE=org.apache.ctakes.typesystem.type.textspan.Sentence
 
 load AttributeCleartkSubPipe
+load org/apache/ctakes/icu/pipeline/IcuSlotSubPipe

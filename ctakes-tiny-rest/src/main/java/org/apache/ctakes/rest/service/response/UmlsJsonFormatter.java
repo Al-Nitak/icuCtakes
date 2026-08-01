@@ -119,7 +119,7 @@ final public class UmlsJsonFormatter implements ResponseFormatter {
 
       // gson can ignore (not serialize) properties with null values.
       static private String textOrNull( final String text ) {
-         return text.isEmpty() ? null : text;
+         return text == null || text.isEmpty() ? null : text;
       }
    }
 

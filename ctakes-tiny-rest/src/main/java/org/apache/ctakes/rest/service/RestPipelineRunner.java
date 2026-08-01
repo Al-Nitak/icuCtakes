@@ -113,18 +113,30 @@ public enum RestPipelineRunner {
    private EngineBundle bundleFor( final String pack ) throws AnalysisEngineProcessException {
       final String key = normalizePack( pack );
       try {
-         return _bundles.computeIfAbsent( key, k -> {
+         return _bundles.computeIfAbsent( key, this::loadPackOrFallback );
+      } catch ( RuntimeException e ) {
+         final Throwable cause = e.getCause() != null ? e.getCause() : e;
+         throw new AnalysisEngineProcessException( cause );
+      }
+   }
+
+   private EngineBundle loadPackOrFallback( final String key ) {
+      final String piper = "pre_anesthesia".equals( key ) ? PRE_ANESTHESIA_PIPER : _defaultPiperPath;
+      try {
+         LOGGER.info( "Loading REST pipeline pack={} from piper: {}", key, piper );
+         return loadBundle( piper );
+      } catch ( IOException | UIMAException | RuntimeException loadE ) {
+         if ( "icu".equals( key ) ) {
+            throw new RuntimeException( loadE );
+         }
+         LOGGER.error( "Failed to load pack={} ({}). Falling back to icu pack.", key, loadE.getMessage() );
+         return _bundles.computeIfAbsent( "icu", k -> {
             try {
-               final String piper = "pre_anesthesia".equals( k ) ? PRE_ANESTHESIA_PIPER : _defaultPiperPath;
-               LOGGER.info( "Loading REST pipeline pack={} from piper: {}", k, piper );
-               return loadBundle( piper );
+               return loadBundle( _defaultPiperPath );
             } catch ( IOException | UIMAException e ) {
                throw new RuntimeException( e );
             }
          } );
-      } catch ( RuntimeException e ) {
-         final Throwable cause = e.getCause() != null ? e.getCause() : e;
-         throw new AnalysisEngineProcessException( cause );
       }
    }
 
@@ -144,10 +156,30 @@ public enum RestPipelineRunner {
 
    public String process( final ResponseFormatter formatter, final String text, final String pack )
          throws AnalysisEngineProcessException {
-      if ( text == null || text.trim().isEmpty() ) {
+      if ( text == null || text.isBlank() ) {
          return "";
       }
-      final EngineBundle bundle = bundleFor( pack );
+      final String key = normalizePack( pack );
+      EngineBundle bundle = bundleFor( key );
+      try {
+         return processWithBundle( formatter, text, bundle, key );
+      } catch ( AnalysisEngineProcessException firstE ) {
+         if ( "icu".equals( key ) ) {
+            throw firstE;
+         }
+         // Broken specialty pack at runtime (e.g. stale piper) — retry on ICU NER.
+         LOGGER.error( "Processing failed for pack={} ({}). Retrying with icu pack.",
+               key, firstE.getMessage() );
+         bundle = bundleFor( "icu" );
+         return processWithBundle( formatter, text, bundle, "icu" );
+      }
+   }
+
+   private String processWithBundle( final ResponseFormatter formatter,
+                                     final String text,
+                                     final EngineBundle bundle,
+                                     final String packKey )
+         throws AnalysisEngineProcessException {
       synchronized ( PROCESS_LOCK ) {
          // JCasPool.getJCas() uses timeout 0 (non-blocking); wait until a CAS is free.
          JCas jcas = bundle.pool.getJCas( 60_000 );
@@ -160,7 +192,7 @@ public enum RestPipelineRunner {
             bundle.engine.process( jcas );
             return formatter.getResultText( jcas );
          } catch ( CASRuntimeException | AnalysisEngineProcessException multE ) {
-            LOGGER.error( "Error processing text (pack={}).", normalizePack( pack ) );
+            LOGGER.error( "Error processing text (pack={}).", packKey );
             throw new AnalysisEngineProcessException( multE );
          } finally {
             bundle.pool.releaseJCas( jcas );

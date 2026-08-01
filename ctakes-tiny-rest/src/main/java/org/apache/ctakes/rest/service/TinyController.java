@@ -61,25 +61,29 @@ public class TinyController {
 
    @RequestMapping( value = "/process", method = RequestMethod.POST )
    @ResponseBody
-   public String processText( @RequestBody final String text,
+   public String processText( @RequestBody( required = false ) final String text,
                               @RequestParam( "format" ) final Optional<String> responseFormat,
                               @RequestParam( "pack" ) final Optional<String> pack )
          throws AnalysisEngineProcessException {
-//      LOGGER.info( "Processing " + text );
+      // Faraday/Spring can deliver a null body for empty/plain posts — never NPE on text.
+      final String document = text == null ? "" : text;
       final String format = responseFormat.orElse( "default" ).toLowerCase();
       final String sectionPack = pack.orElse( "icu" );
-      LOGGER.info( "Processing format={} pack={} ({} chars)", format, sectionPack, text == null ? 0 : text.length() );
+      LOGGER.info( "Processing format={} pack={} ({} chars)", format, sectionPack, document.length() );
+      if ( document.isBlank() ) {
+         return "";
+      }
       return switch ( format ) {
-         case "fhir" -> RestPipelineRunner.getInstance().process( new FhirJsonFormatter(), text, sectionPack );
-         case "pretty" -> RestPipelineRunner.getInstance().process( new PrettyPrintFormatter(), text, sectionPack );
-         case "property" -> RestPipelineRunner.getInstance().process( new PropertyListFormatter(), text, sectionPack );
-         case "umls" -> RestPipelineRunner.getInstance().process( new UmlsJsonFormatter(), text, sectionPack );
-         case "cui" -> RestPipelineRunner.getInstance().process( new CuiListFormatter(), text, sectionPack );
-         case "xmi" -> RestPipelineRunner.getInstance().process( new XmiFormatter(), text, sectionPack );
-         case "handover" -> RestPipelineRunner.getInstance().process( new HandoverJsonFormatter(), text, sectionPack );
+         case "fhir" -> RestPipelineRunner.getInstance().process( new FhirJsonFormatter(), document, sectionPack );
+         case "pretty" -> RestPipelineRunner.getInstance().process( new PrettyPrintFormatter(), document, sectionPack );
+         case "property" -> RestPipelineRunner.getInstance().process( new PropertyListFormatter(), document, sectionPack );
+         case "umls" -> RestPipelineRunner.getInstance().process( new UmlsJsonFormatter(), document, sectionPack );
+         case "cui" -> RestPipelineRunner.getInstance().process( new CuiListFormatter(), document, sectionPack );
+         case "xmi" -> RestPipelineRunner.getInstance().process( new XmiFormatter(), document, sectionPack );
+         case "handover" -> RestPipelineRunner.getInstance().process( new HandoverJsonFormatter(), document, sectionPack );
          // One pipeline pass → combined clinical + coding + FHIR + views map
-         case "map", "all", "info" -> RestPipelineRunner.getInstance().process( new InformationMapFormatter(), text, sectionPack );
-         default -> RestPipelineRunner.getInstance().process( new FhirJsonFormatter(), text, sectionPack );
+         case "map", "all", "info" -> RestPipelineRunner.getInstance().process( new InformationMapFormatter(), document, sectionPack );
+         default -> RestPipelineRunner.getInstance().process( new FhirJsonFormatter(), document, sectionPack );
       };
    }
 

@@ -17,7 +17,7 @@ set LookupXml=resources/org/apache/ctakes/dictionary/lookup/fast/sno_rx_16ab.xml
 add DefaultJCasTermAnnotator LookupXml=resources/org/apache/ctakes/dictionary/lookup/fast/sno_rx_16ab.xml
 
 // Dose / route / frequency modifiers on MedicationMention spans
-add org.apache.ctakes.drugner.ae.DrugMentionAnnotator
+add org.apache.ctakes.drugner.ae.DrugMentionAnnotator DISTANCE="1" DISTANCE_ANN_TYPE=org.apache.ctakes.typesystem.type.textspan.Sentence STATUS_BOUNDARY_ANN_TYPE=org.apache.ctakes.typesystem.type.textspan.Sentence
 
 load AttributeCleartkSubPipe
 load org/apache/ctakes/icu/pipeline/IcuSlotSubPipe

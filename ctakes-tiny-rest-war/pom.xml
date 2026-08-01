@@ -113,6 +113,7 @@
                            <includes>
                               <include>TinyRestPipeline.piper</include>
                               <include>TinyRestPipeline.prod.piper</include>
+                              <include>TinyRestPipeline.pre_anesthesia.piper</include>
                            </includes>
                            <filtering>false</filtering>
                         </resource>
