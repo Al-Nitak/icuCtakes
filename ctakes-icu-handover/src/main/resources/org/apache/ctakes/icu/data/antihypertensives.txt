@@ -1,0 +1,18 @@
+# Antihypertensives: pattern||preferred||CUI||RXNORM||rxcui
+amlodipine||Amlodipine||C0051696||RXNORM||17767
+norvasc||Amlodipine||C0051696||RXNORM||17767
+labetalol||Labetalol||C0022860||RXNORM||6185
+hydralazine||Hydralazine||C0020223||RXNORM||5470
+metoprolol||Metoprolol||C0025859||RXNORM||6918
+lopressor||Metoprolol||C0025859||RXNORM||6918
+carvedilol||Carvedilol||C0054836||RXNORM||20352
+coreg||Carvedilol||C0054836||RXNORM||20352
+nicardipine||Nicardipine||C0027997||RXNORM||7396
+clevidipine||Clevidipine||C1456869||RXNORM||401984
+nitroprusside||Nitroprusside||C0028176||RXNORM||7486
+enalapril||Enalapril||C0014025||RXNORM||3827
+lisinopril||Lisinopril||C0065374||RXNORM||29046
+losartan||Losartan||C0126174||RXNORM||52175
+valsartan||Valsartan||C0216784||RXNORM||69749
+clonidine||Clonidine||C0009014||RXNORM||2599
+propranolol||Propranolol||C0033497||RXNORM||8787

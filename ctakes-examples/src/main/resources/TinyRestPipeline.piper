@@ -1,11 +1,10 @@
-// Must match ctakes-tiny-rest TinyRestPipeline.piper.
-// This file is on the WAR classpath via ctakes-user-resources → ctakes-examples;
-// FileLocator prefers classpath streams, so a stale copy here overrides the filesystem piper.
-
-// Local/dev Tiny REST pipeline (default). No UMLS license check.
+// Local/dev Tiny REST pipeline (default).
+// Uses SNOMED+RxNorm (sno_rx_16ab) without NIH UMLS license check.
 // Production uses TinyRestPipeline.prod.piper via:
 //   -Dctakes.rest.piper=TinyRestPipeline.prod.piper
 //   or CTAKES_REST_PIPER=TinyRestPipeline.prod.piper
+// Requires unpacked dictionary DB at:
+//   resources/org/apache/ctakes/dictionary/lookup/fast/sno_rx_16ab/
 
 set WriteBanner=yes
 
@@ -14,8 +13,12 @@ add ContextDependentTokenizerAnnotator
 addDescription POSTagger
 load ChunkerSubPipe
 
-set LookupXml=resources/org/apache/ctakes/dictionary/lookup/fast/ctakesicd2015_no_umls.xml
-add DefaultJCasTermAnnotator LookupXml=resources/org/apache/ctakes/dictionary/lookup/fast/ctakesicd2015_no_umls.xml
+set LookupXml=resources/org/apache/ctakes/dictionary/lookup/fast/sno_rx_16ab_no_umls.xml
+add DefaultJCasTermAnnotator LookupXml=resources/org/apache/ctakes/dictionary/lookup/fast/sno_rx_16ab_no_umls.xml
+
+// Dose / route / frequency modifiers on MedicationMention spans.
+// ICU LexiconMedicationAnnotator still fills ASR aliases / ICU-only names.
+add org.apache.ctakes.drugner.ae.DrugMentionAnnotator
 
 load AttributeCleartkSubPipe
 load org/apache/ctakes/icu/pipeline/IcuSlotSubPipe

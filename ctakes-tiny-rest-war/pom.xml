@@ -28,6 +28,10 @@
       </dependency>
       <dependency>
          <groupId>org.apache.ctakes</groupId>
+         <artifactId>ctakes-drug-ner</artifactId>
+      </dependency>
+      <dependency>
+         <groupId>org.apache.ctakes</groupId>
          <artifactId>ctakes-dictionary-lookup-fast</artifactId>
       </dependency>
       <dependency>

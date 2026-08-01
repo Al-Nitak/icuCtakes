@@ -73,6 +73,11 @@ final public class HandoverAssembler {
    static private final Set<String> DIURETICS = LexiconLoader.loadCodedTokenSet( "org/apache/ctakes/icu/data/diuretics.txt" );
    static private final Set<String> ANTICOAG = LexiconLoader.loadCodedTokenSet( "org/apache/ctakes/icu/data/anticoagulants.txt" );
    static private final Set<String> THROMBOLYTICS = LexiconLoader.loadCodedTokenSet( "org/apache/ctakes/icu/data/thrombolytics.txt" );
+   static private final Set<String> ANALGESICS = LexiconLoader.loadCodedTokenSet( "org/apache/ctakes/icu/data/analgesics.txt" );
+   static private final Set<String> STEROIDS = LexiconLoader.loadCodedTokenSet( "org/apache/ctakes/icu/data/steroids.txt" );
+   static private final Set<String> ANTIHYPERTENSIVES
+         = LexiconLoader.loadCodedTokenSet( "org/apache/ctakes/icu/data/antihypertensives.txt" );
+   static private final Set<String> FLUIDS = LexiconLoader.loadCodedTokenSet( "org/apache/ctakes/icu/data/fluids.txt" );
    static private final List<LexiconLoader.CodedEntry> DRUG_LEXICON;
    static private final List<LexiconLoader.CodedEntry> ACCESS_LEXICON
          = LexiconLoader.loadCodedEntries( "org/apache/ctakes/icu/data/access_devices.txt" );
@@ -83,8 +88,13 @@ final public class HandoverAssembler {
       drugs.addAll( LexiconLoader.loadCodedEntries( "org/apache/ctakes/icu/data/vasopressors.txt" ) );
       drugs.addAll( LexiconLoader.loadCodedEntries( "org/apache/ctakes/icu/data/anticoagulants.txt" ) );
       drugs.addAll( LexiconLoader.loadCodedEntries( "org/apache/ctakes/icu/data/sedatives.txt" ) );
+      drugs.addAll( LexiconLoader.loadCodedEntries( "org/apache/ctakes/icu/data/analgesics.txt" ) );
+      drugs.addAll( LexiconLoader.loadCodedEntries( "org/apache/ctakes/icu/data/steroids.txt" ) );
+      drugs.addAll( LexiconLoader.loadCodedEntries( "org/apache/ctakes/icu/data/antihypertensives.txt" ) );
+      drugs.addAll( LexiconLoader.loadCodedEntries( "org/apache/ctakes/icu/data/fluids.txt" ) );
       drugs.addAll( LexiconLoader.loadCodedEntries( "org/apache/ctakes/icu/data/gi_meds.txt" ) );
       drugs.addAll( LexiconLoader.loadCodedEntries( "org/apache/ctakes/icu/data/diuretics.txt" ) );
+      drugs.addAll( LexiconLoader.loadCodedEntries( "org/apache/ctakes/icu/data/thrombolytics.txt" ) );
       DRUG_LEXICON = Collections.unmodifiableList( drugs );
    }
 
@@ -118,7 +128,20 @@ final public class HandoverAssembler {
          "(?i)\\b(IVP|IV|PO|SQ|SC|IM|NGT|NG|SL|PR|oral|by\\s+mouth)\\b" );
 
    static private final Pattern WINDOW_FREQUENCY = Pattern.compile(
-         "(?i)\\b(q\\d+h?|bid|tid|qid|od|bd|tds|daily|prn|as\\s+needed|/24|/12|/8)\\b" );
+         "(?i)\\b(q\\d+h?|bid|tid|qid|od|bd|tds|daily|prn|as\\s+needed|"
+               + "every\\s+\\d+\\s+hours?|/24|/12|/8)\\b" );
+
+   /** Drug NER often mis-parses "every 8 hours" as "3.0 day". */
+   static private final Pattern BROKEN_DAY_FREQ = Pattern.compile(
+         "(?i)^\\d+(?:\\.\\d+)?\\s*days?$" );
+
+   static private final Pattern EVERY_HOURS = Pattern.compile(
+         "(?i)\\bevery\\s+(\\d+)\\s+hours?\\b" );
+
+   static private final Set<String> JUNK_MED_TEXTS = setOf(
+         "oral", "gel", "tablet", "tablets", "capsule", "capsules", "infusion",
+         "analgesic", "analgesics", "medication", "medications", "drug", "drugs",
+         "dose", "dosage", "form", "solution", "cream", "ointment" );
 
    static private final Set<String> BACKGROUND_SECTIONS = setOf(
          "background", "past medical history", "pmh", "pmhx", "patient history", "clinical history" );
@@ -211,17 +234,24 @@ final public class HandoverAssembler {
          }
       }
 
-      // Medications by class / section
+      // Medications by class / section — also keep full list under access.medications
+      final List<HandoverDocument.MedDto> allMeds = new ArrayList<>();
       for ( MedicationMention med : JCasUtil.select( jCas, MedicationMention.class ) ) {
          final HandoverDocument.MedDto medDto = toMed( med, segments, docText );
+         if ( isJunkMedication( medDto ) || !keepMedication( medDto ) ) {
+            continue;
+         }
+         allMeds.add( medDto );
          final String drugClass = medDto.drugClass;
          if ( "antibiotic".equals( drugClass ) || "antifungal".equals( drugClass ) ) {
             doc.access.antibiotics.add( medDto );
          }
-         if ( "sedative".equals( drugClass ) || inSections( med, segments, CNS_SECTIONS ) ) {
+         if ( "sedative".equals( drugClass ) || "analgesic".equals( drugClass )
+               || inSections( med, segments, CNS_SECTIONS ) ) {
             doc.systems.cns.medications.add( medDto );
          }
-         if ( "vasopressor".equals( drugClass ) || inSections( med, segments, CVS_SECTIONS ) ) {
+         if ( "vasopressor".equals( drugClass ) || "antihypertensive".equals( drugClass )
+               || inSections( med, segments, CVS_SECTIONS ) ) {
             doc.systems.cvs.medications.add( medDto );
          }
          if ( inSections( med, segments, RESP_SECTIONS ) ) {
@@ -230,13 +260,15 @@ final public class HandoverAssembler {
          if ( "gi".equals( drugClass ) || inSections( med, segments, GI_SECTIONS ) ) {
             doc.systems.gi.medications.add( medDto );
          }
-         if ( "diuretic".equals( drugClass ) || inSections( med, segments, GU_SECTIONS ) ) {
+         if ( "diuretic".equals( drugClass ) || "fluid".equals( drugClass )
+               || inSections( med, segments, GU_SECTIONS ) ) {
             doc.systems.gu.medications.add( medDto );
          }
          if ( "anticoagulant".equals( drugClass ) ) {
             doc.systems.hematology.anticoagulants.add( medDto );
          }
       }
+      doc.access.medications = dedupeMedications( allMeds );
 
       for ( LabValueMention labVal : JCasUtil.select( jCas, LabValueMention.class ) ) {
          final HandoverDocument.LabDto dto = new HandoverDocument.LabDto();
@@ -253,11 +285,14 @@ final public class HandoverAssembler {
          doc.systems.labs.add( dto );
       }
 
-      // CVS status inference
+      // CVS status: only emit when evidenced. A bare label "unknown" (no offsets) is
+      // promoted by some consumers into a phantom span at transcript[0:7] ("Regardi"…).
       final boolean onPressors = doc.systems.cvs.medications.stream()
             .anyMatch( m -> "vasopressor".equals( m.drugClass ) );
-      doc.systems.cvs.status.put( "label", onPressors ? "on_pressors" : "unknown" );
-      doc.systems.cvs.status.put( "evidence", onPressors ? "vasopressor medication detected" : "" );
+      if ( onPressors ) {
+         doc.systems.cvs.status.put( "label", "on_pressors" );
+         doc.systems.cvs.status.put( "evidence", "vasopressor medication detected" );
+      }
 
       // ICU slots
       for ( GcsMention gcs : JCasUtil.select( jCas, GcsMention.class ) ) {
@@ -806,10 +841,21 @@ final public class HandoverAssembler {
       dto.strength = extractStrength( med );
       dto.frequency = extractFrequency( med );
       dto.route = extractRoute( med );
-      // Drug NER modifiers are usually absent on Tiny REST — fill from text after the span.
-      if ( isBlank( dto.dose ) || isBlank( dto.frequency ) || isBlank( dto.route ) ) {
-         fillMedAttributesFromWindow( dto, windowAfter( docText, med.getEnd(), MED_ATTR_WINDOW ) );
+      // Drug NER often emits bogus "3.0 day" for "every 8 hours" — clear and re-parse.
+      if ( !isBlank( dto.frequency ) && BROKEN_DAY_FREQ.matcher( dto.frequency.trim() ).matches() ) {
+         dto.frequency = null;
       }
+      final String after = truncateAtNextDrug(
+            windowAfter( docText, med.getEnd(), MED_ATTR_WINDOW + 24 ), dto.text );
+      // Drop Dose/Freq that Drug NER attached from a later drug in the same sentence.
+      if ( !isBlank( dto.dose ) && !windowContainsDose( after, dto.dose ) ) {
+         dto.dose = null;
+      }
+      if ( isBlank( dto.dose ) || isBlank( dto.frequency ) || isBlank( dto.route ) ) {
+         fillMedAttributesFromWindow( dto, after );
+      }
+      // Prefer explicit "every N hours" over Drug NER day counts.
+      preferEveryHoursFrequency( dto, after );
       if ( isBlank( dto.route ) ) {
          fillMedAttributesFromBeforeWindow( dto, windowBefore( docText, med.getBegin(), MED_ATTR_WINDOW_BEFORE ) );
       }
@@ -817,8 +863,92 @@ final public class HandoverAssembler {
       if ( isBlank( dto.dose ) && !isBlank( dto.strength ) ) {
          dto.dose = dto.strength.trim();
       }
+      // Fluid rates like "80 ml per hour" are not mg doses — keep as dose text if still blank.
+      if ( isBlank( dto.dose ) && "fluid".equals( classifyDrug( med.getCoveredText(), dto.preferredText ) ) ) {
+         final Matcher rate = Pattern.compile(
+               "(?i)(\\d+(?:\\.\\d+)?\\s*ml(?:\\s*/\\s*h|\\s*per\\s*hour)?)" ).matcher( after );
+         if ( rate.find() ) {
+            dto.dose = rate.group( 1 ).replaceAll( "\\s+", " " ).trim();
+         }
+      }
       dto.drugClass = classifyDrug( med.getCoveredText(), dto.preferredText );
       return dto;
+   }
+
+   static void preferEveryHoursFrequency( final HandoverDocument.MedDto dto, final String window ) {
+      if ( dto == null || isBlank( window ) ) {
+         return;
+      }
+      final Matcher every = EVERY_HOURS.matcher( window );
+      if ( every.find() ) {
+         dto.frequency = "q" + every.group( 1 ) + "h";
+      }
+   }
+
+   static private boolean windowContainsDose( final String window, final String dose ) {
+      if ( isBlank( window ) || isBlank( dose ) ) {
+         return false;
+      }
+      final Matcher num = Pattern.compile( "(\\d+(?:\\.\\d+)?)" ).matcher( dose );
+      if ( !num.find() ) {
+         return window.toLowerCase( Locale.ROOT ).contains( dose.toLowerCase( Locale.ROOT ) );
+      }
+      return Pattern.compile( "(?i)\\b" + Pattern.quote( num.group( 1 ) ) + "\\b" ).matcher( window ).find();
+   }
+
+   /**
+    * Stop attribute window before the next ICU drug name so dose/freq does not bleed
+    * across "tramadol …, paracetamol …, and Zivo …".
+    */
+   static String truncateAtNextDrug( final String window, final String currentDrug ) {
+      if ( isBlank( window ) ) {
+         return "";
+      }
+      int cut = window.length();
+      for ( LexiconLoader.CodedEntry entry : DRUG_LEXICON ) {
+         final Matcher m = entry.pattern.matcher( window );
+         while ( m.find() ) {
+            final String hit = m.group();
+            if ( currentDrug != null && hit.equalsIgnoreCase( currentDrug.trim() ) ) {
+               continue;
+            }
+            if ( m.start() > 0 && m.start() < cut ) {
+               cut = m.start();
+            }
+         }
+      }
+      return window.substring( 0, cut );
+   }
+
+   static private boolean isJunkMedication( final HandoverDocument.MedDto med ) {
+      if ( med == null || isBlank( med.text ) ) {
+         return true;
+      }
+      final String t = med.text.trim().toLowerCase( Locale.ROOT );
+      if ( JUNK_MED_TEXTS.contains( t ) ) {
+         return true;
+      }
+      final String pref = med.preferredText == null ? "" : med.preferredText.toLowerCase( Locale.ROOT );
+      if ( pref.contains( "dosage form" ) || pref.equals( "gel" ) || pref.equals( "analgesics" )
+            || pref.equals( "oral dosage form" ) || pref.equals( "today" ) || pref.equals( "air" )
+            || pref.equals( "liquid" ) || pref.equals( "oxygen" )
+            || pref.contains( "prophylaxis" ) || pref.equals( "antibiotics" ) ) {
+         return true;
+      }
+      return "other".equals( med.drugClass ) && t.length() <= 4 && isBlank( med.cui );
+   }
+
+   /** Keep classified ICU drugs, or any span that matches an ICU drug lexicon entry. */
+   static private boolean keepMedication( final HandoverDocument.MedDto med ) {
+      if ( med == null ) {
+         return false;
+      }
+      if ( med.drugClass != null && !"other".equals( med.drugClass ) ) {
+         return true;
+      }
+      final String haystack = ((med.text == null ? "" : med.text) + " "
+            + (med.preferredText == null ? "" : med.preferredText)).trim();
+      return LexiconLoader.matchCoded( haystack, DRUG_LEXICON ) != null;
    }
 
    /**
@@ -849,12 +979,16 @@ final public class HandoverAssembler {
                freq = "PRN";
             } else if ( freq.equalsIgnoreCase( "prn" ) ) {
                freq = "PRN";
-            } else if ( !freq.startsWith( "/" ) ) {
-               // keep q24h / daily casing light — normalize common tokens
-               if ( freq.equalsIgnoreCase( "daily" ) ) {
-                  freq = "daily";
-               } else {
-                  freq = freq.toLowerCase( Locale.ROOT );
+            } else {
+               final Matcher every = Pattern.compile( "(?i)every\\s+(\\d+)\\s+hours?" ).matcher( freq );
+               if ( every.matches() ) {
+                  freq = "q" + every.group( 1 ) + "h";
+               } else if ( !freq.startsWith( "/" ) ) {
+                  if ( freq.equalsIgnoreCase( "daily" ) ) {
+                     freq = "daily";
+                  } else {
+                     freq = freq.toLowerCase( Locale.ROOT );
+                  }
                }
             }
             dto.frequency = freq;
@@ -963,7 +1097,8 @@ final public class HandoverAssembler {
       dto.code = hit.code;
    }
 
-   static private String classifyDrug( final String text, final String preferred ) {
+   /** Package-visible for unit tests. */
+   static String classifyDrug( final String text, final String preferred ) {
       final String combined = ((text == null ? "" : text) + " " + (preferred == null ? "" : preferred))
             .toLowerCase( Locale.ROOT );
       if ( LexiconLoader.textContainsAny( combined, THROMBOLYTICS ) ) {
@@ -983,6 +1118,18 @@ final public class HandoverAssembler {
       if ( LexiconLoader.textContainsAny( combined, SEDATIVES ) ) {
          return "sedative";
       }
+      if ( LexiconLoader.textContainsAny( combined, ANALGESICS ) ) {
+         return "analgesic";
+      }
+      if ( LexiconLoader.textContainsAny( combined, STEROIDS ) ) {
+         return "steroid";
+      }
+      if ( LexiconLoader.textContainsAny( combined, ANTIHYPERTENSIVES ) ) {
+         return "antihypertensive";
+      }
+      if ( LexiconLoader.textContainsAny( combined, FLUIDS ) ) {
+         return "fluid";
+      }
       if ( LexiconLoader.textContainsAny( combined, GI_MEDS ) ) {
          return "gi";
       }
@@ -993,6 +1140,42 @@ final public class HandoverAssembler {
          return "anticoagulant";
       }
       return "other";
+   }
+
+   /** Prefer longer / better-coded spans when mentions overlap. */
+   static List<HandoverDocument.MedDto> dedupeMedications( final List<HandoverDocument.MedDto> meds ) {
+      if ( meds == null || meds.size() <= 1 ) {
+         return meds == null ? new ArrayList<>() : new ArrayList<>( meds );
+      }
+      final List<HandoverDocument.MedDto> sorted = new ArrayList<>( meds );
+      sorted.sort( ( a, b ) -> {
+         final int lenA = a.end - a.begin;
+         final int lenB = b.end - b.begin;
+         if ( lenB != lenA ) {
+            return Integer.compare( lenB, lenA );
+         }
+         final int codeA = isBlank( a.cui ) ? 0 : 1;
+         final int codeB = isBlank( b.cui ) ? 0 : 1;
+         if ( codeB != codeA ) {
+            return Integer.compare( codeB, codeA );
+         }
+         return Integer.compare( a.begin, b.begin );
+      } );
+      final List<HandoverDocument.MedDto> kept = new ArrayList<>();
+      for ( HandoverDocument.MedDto med : sorted ) {
+         boolean overlaps = false;
+         for ( HandoverDocument.MedDto existing : kept ) {
+            if ( med.begin < existing.end && med.end > existing.begin ) {
+               overlaps = true;
+               break;
+            }
+         }
+         if ( !overlaps ) {
+            kept.add( med );
+         }
+      }
+      kept.sort( Comparator.comparingInt( m -> m.begin ) );
+      return kept;
    }
 
    static private String extractDose( final MedicationMention med ) {

@@ -36,6 +36,7 @@ final public class HandoverHtmlRenderer {
       section( sb, null, "Hematology / Culture", renderHeme( doc.systems.hematology ) );
       section( sb, null, "Labs", renderLabs( doc.systems.labs ) );
       section( sb, null, "LINE / Access", renderAccess( doc.access ) );
+      section( sb, null, "Medications", renderAllMeds( doc.access.medications ) );
       section( sb, null, "Abx", renderMeds( doc.access.antibiotics ) );
       section( sb, null, "Imaging", renderImaging( doc.imaging ) );
 
@@ -246,6 +247,23 @@ final public class HandoverHtmlRenderer {
    static private String renderMeds( final List<HandoverDocument.MedDto> meds ) {
       final StringBuilder sb = new StringBuilder();
       appendMedTable( sb, meds );
+      return sb.toString();
+   }
+
+   static private String renderAllMeds( final List<HandoverDocument.MedDto> meds ) {
+      if ( meds == null || meds.isEmpty() ) {
+         return "";
+      }
+      final StringBuilder sb = new StringBuilder();
+      sb.append( "<table>\n<thead><tr><th>Drug</th><th>Class</th><th>Dose</th><th>Route</th><th>Freq</th></tr></thead>\n<tbody>\n" );
+      for ( HandoverDocument.MedDto m : meds ) {
+         sb.append( "<tr><td>" ).append( esc( firstNonBlank( m.preferredText, m.text ) ) ).append( "</td>" );
+         sb.append( "<td>" ).append( esc( nullToEmpty( m.drugClass ) ) ).append( "</td>" );
+         sb.append( "<td>" ).append( esc( firstNonBlank( m.dose, m.strength ) ) ).append( "</td>" );
+         sb.append( "<td>" ).append( esc( nullToEmpty( m.route ) ) ).append( "</td>" );
+         sb.append( "<td>" ).append( esc( nullToEmpty( m.frequency ) ) ).append( "</td></tr>\n" );
+      }
+      sb.append( "</tbody></table>\n" );
       return sb.toString();
    }
 

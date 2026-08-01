@@ -195,6 +195,8 @@ public class HandoverDocument {
    public static class AccessDto {
       public List<LineDto> lines = new ArrayList<>();
       public List<MedDto> antibiotics = new ArrayList<>();
+      /** All medication mentions with drugClass / dose / route / frequency. */
+      public List<MedDto> medications = new ArrayList<>();
    }
 
    public static class LineDto {

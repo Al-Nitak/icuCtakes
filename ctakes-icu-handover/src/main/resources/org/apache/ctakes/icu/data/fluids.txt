@@ -1,0 +1,10 @@
+# IV fluids: pattern||preferred||CUI||RXNORM||rxcui
+normal\s*saline||Normal saline||C0036085||RXNORM||313002
+0\.9%\s*saline||Normal saline||C0036085||RXNORM||313002
+# Avoid bare "ns" — too many false contains matches in classifyDrug
+normal\s*saline\s*\(ns\)||Normal saline||C0036085||RXNORM||313002
+hartmann(?:'?s)?||Hartmann's solution||C0304680||RXNORM||260258
+lactated\s*ringer(?:'?s)?||Lactated Ringer||C0073385||RXNORM||8492
+ringer(?:'?s)?\s*lactate||Lactated Ringer||C0073385||RXNORM||8492
+\bd5w\b||Dextrose 5% in water||C0015374||RXNORM||237653
+half\s*normal\s*saline||Half-normal saline||C0360367||RXNORM||313001

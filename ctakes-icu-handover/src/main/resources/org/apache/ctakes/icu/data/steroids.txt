@@ -1,0 +1,13 @@
+# Corticosteroids: pattern||preferred||CUI||RXNORM||rxcui
+dexamethasone||Dexamethasone||C0011777||RXNORM||3264
+decadron||Dexamethasone||C0011777||RXNORM||3264
+hydrocortisone||Hydrocortisone||C0020268||RXNORM||5492
+solu-cortef||Hydrocortisone||C0020268||RXNORM||5492
+# note: CUI shared with older Metathesaurus atoms; RXNORM code is authoritative
+methylprednisolone||Methylprednisolone||C0025815||RXNORM||6902
+solumedrol||Methylprednisolone||C0025815||RXNORM||6902
+solu-medrol||Methylprednisolone||C0025815||RXNORM||6902
+prednisone||Prednisone||C0032952||RXNORM||8640
+prednisolone||Prednisolone||C0032951||RXNORM||8638
+budesonide||Budesonide||C0054201||RXNORM||19831
+fludrocortisone||Fludrocortisone||C0016295||RXNORM||4452

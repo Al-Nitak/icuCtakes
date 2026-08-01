@@ -1,0 +1,17 @@
+# Analgesics / local anesthetics: pattern||preferred||CUI||RXNORM||rxcui
+tramadol||Tramadol||C0040610||RXNORM||10689
+paracetamol||Acetaminophen||C0000970||RXNORM||161
+acetaminophen||Acetaminophen||C0000970||RXNORM||161
+panadol||Acetaminophen||C0000970||RXNORM||161
+tylenol||Acetaminophen||C0000970||RXNORM||161
+lidocaine||Lidocaine||C0023660||RXNORM||6387
+lignocaine||Lidocaine||C0023660||RXNORM||6387
+xylocaine||Lidocaine||C0023660||RXNORM||6387
+ibuprofen||Ibuprofen||C0020740||RXNORM||5640
+naproxen||Naproxen||C0027396||RXNORM||7258
+oxycodone||Oxycodone||C0030049||RXNORM||7804
+hydrocodone||Hydrocodone||C0020268||RXNORM||5489
+codeine||Codeine||C0009214||RXNORM||2670
+gabapentin||Gabapentin||C0060926||RXNORM||25480
+pregabalin||Pregabalin||C0657912||RXNORM||187832
+lyrica||Pregabalin||C0657912||RXNORM||187832

@@ -10,9 +10,15 @@ if [[ -z "${JAVA_HOME:-}" ]]; then
   fi
 fi
 
-echo "==> Building WAR ..."
-mvn -pl ctakes-tiny-rest,ctakes-icu-handover,ctakes-user-resources,ctakes-tiny-rest-war \
-  package -DskipTests -q
+MODULES="ctakes-icu-handover,ctakes-examples,ctakes-user-resources,ctakes-tiny-rest,ctakes-tiny-rest-war"
+
+echo "==> Cleaning Tiny REST stack ..."
+"${REPO_ROOT}/scripts/clean-tiny-rest.sh"
+
+echo "==> Building + installing modules (fresh jars into WAR) ..."
+# install (not just package) so ctakes-tiny-rest-war embeds rebuilt dependency jars
+# from this reactor / local .m2, including HandoverAssembler fixes.
+mvn -pl "${MODULES}" install -DskipTests -q
 
 if [[ ! -f ctakes-tiny-rest-war/target/ctakes_tiny_rest.war ]]; then
   echo "WAR not found at ctakes-tiny-rest-war/target/ctakes_tiny_rest.war" >&2

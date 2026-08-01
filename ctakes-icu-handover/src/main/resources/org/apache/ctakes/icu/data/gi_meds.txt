@@ -11,6 +11,8 @@ famotidine||Famotidine||C0015628||RXNORM||4278
 pepcid||Famotidine||C0015628||RXNORM||4278
 ondansetron||Ondansetron||C0061851||RXNORM||26225
 zofran||Ondansetron||C0061851||RXNORM||26225
+# Speech/ASR: "Zivo 8 mg q12h" usually Zofran (ondansetron)
+zivo||Ondansetron||C0061851||RXNORM||26225
 metoclopramide||Metoclopramide||C0025853||RXNORM||6915
 reglan||Metoclopramide||C0025853||RXNORM||6915
 sucralfate||Sucralfate||C0038261||RXNORM||10154

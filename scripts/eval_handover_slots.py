@@ -10,7 +10,8 @@ Gold schema (per file):
   "antibiotics": [{"text": "vancomycin", "route": "PO"}],
   "cultures": [{"organism": "Pseudomonas", "site": "blood", "sensContains": ["sensitive"]}],
   "imaging": [{"modality": "CT", "mustFind": ["ischemic"], "mustNotFind": ["UTI"]}],
-  "labs": [{"name": "creatinine", "value": "3"}]
+  "labs": [{"name": "creatinine", "value": "3"}],
+  "medications": [{"text": "tramadol", "drugClass": "analgesic", "dose": "50 mg", "frequency": "q8h"}]
 }
 """
 from __future__ import annotations
@@ -32,6 +33,10 @@ def load_json(path: Path) -> dict[str, Any]:
 
 def antibiotics(doc: dict) -> list[dict]:
     return (doc.get("access") or {}).get("antibiotics") or []
+
+
+def medications(doc: dict) -> list[dict]:
+    return (doc.get("access") or {}).get("medications") or []
 
 
 def cultures(doc: dict) -> list[dict]:
@@ -179,6 +184,49 @@ def score_labs(gold: list[dict], actual: list[dict]) -> tuple[int, int, int, lis
     return tp, fp, fn, errors
 
 
+def score_medications(gold: list[dict], actual: list[dict]) -> tuple[int, int, int, list[str]]:
+    """Score access.medications; FP only counted for unmatched gold misses (recall-focused)."""
+    tp = fp = fn = 0
+    errors: list[str] = []
+    matched = set()
+    for g in gold:
+        want_text = norm(g.get("text"))
+        hit = None
+        for i, a in enumerate(actual):
+            if i in matched:
+                continue
+            hay = norm(a.get("text")) + " " + norm(a.get("preferredText"))
+            if want_text and want_text in hay:
+                hit = (i, a)
+                break
+        if hit is None:
+            fn += 1
+            errors.append(f"medication miss: {g}")
+            continue
+        matched.add(hit[0])
+        tp += 1
+        a = hit[1]
+        if g.get("drugClass") and norm(a.get("drugClass")) != norm(g.get("drugClass")):
+            errors.append(
+                f"medication class: {g.get('text')} expected {g.get('drugClass')}, got {a.get('drugClass')}"
+            )
+        if g.get("dose"):
+            dose = norm(a.get("dose") or a.get("strength"))
+            if norm(g["dose"]) not in dose:
+                errors.append(f"medication dose: {g.get('text')} expected {g.get('dose')}, got {a.get('dose')}")
+        if g.get("frequency"):
+            freq = norm(a.get("frequency"))
+            want_f = norm(g["frequency"])
+            if want_f not in freq and freq not in want_f:
+                errors.append(
+                    f"medication freq: {g.get('text')} expected {g.get('frequency')}, got {a.get('frequency')}"
+                )
+        if g.get("route") and norm(a.get("route")) != norm(g.get("route")):
+            errors.append(f"medication route: {g.get('text')} expected {g.get('route')}, got {a.get('route')}")
+    # Do not penalize extra detected meds for precision on this slot
+    return tp, fp, fn, errors
+
+
 def prf(tp: int, fp: int, fn: int) -> tuple[float, float, float]:
     p = tp / (tp + fp) if tp + fp else 1.0
     r = tp / (tp + fn) if tp + fn else 1.0
@@ -194,13 +242,18 @@ def eval_one(gold_path: Path, handover_path: Path) -> dict[str, Any]:
 
     for name, scorer, getter in [
         ("antibiotics", score_antibiotics, antibiotics),
+        ("medications", score_medications, medications),
         ("cultures", score_cultures, cultures),
         ("imaging", score_imaging, imaging),
         ("labs", score_labs, labs),
     ]:
         g = gold.get(name) or []
         a = getter(doc)
-        if not g and not a:
+        # Skip empty gold unless the slot key is explicitly present (medications=[] means skip)
+        if name not in gold and not g and not a:
+            results["slots"][name] = {"skipped": True}
+            continue
+        if not g:
             results["slots"][name] = {"skipped": True}
             continue
         tp, fp, fn, errs = scorer(g, a)

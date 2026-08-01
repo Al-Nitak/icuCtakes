@@ -1,0 +1,10 @@
+{
+  "medications": [
+    {"text": "lidocaine", "drugClass": "analgesic"},
+    {"text": "dexamethasone", "drugClass": "steroid"},
+    {"text": "tramadol", "drugClass": "analgesic", "dose": "50 mg", "frequency": "q8h"},
+    {"text": "paracetamol", "drugClass": "analgesic", "frequency": "q8h"},
+    {"text": "Zivo", "drugClass": "gi", "dose": "8 mg", "frequency": "q12h"},
+    {"text": "normal saline", "drugClass": "fluid"}
+  ]
+}

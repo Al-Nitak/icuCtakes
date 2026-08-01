@@ -17,6 +17,7 @@ metronidazole||Metronidazole||C0025872||RXNORM||6922
 flagyl||Metronidazole||C0025872||RXNORM||6922
 azithromycin||Azithromycin||C0052804||RXNORM||18631
 linezolid||Linezolid||C0663046||RXNORM||190376
+zyvox||Linezolid||C0663046||RXNORM||190376
 daptomycin||Daptomycin||C0057148||RXNORM||22299
 gentamicin||Gentamicin||C0017448||RXNORM||4821
 tobramycin||Tobramycin||C0040360||RXNORM||10627
