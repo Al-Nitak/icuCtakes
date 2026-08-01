@@ -4,6 +4,7 @@ import com.google.gson.GsonBuilder;
 import org.apache.ctakes.core.util.annotation.IdentifiedAnnotationUtil;
 import org.apache.ctakes.core.util.annotation.OntologyConceptUtil;
 import org.apache.ctakes.core.util.annotation.SemanticTui;
+import org.apache.ctakes.icu.cc.HandoverAssembler;
 import org.apache.ctakes.typesystem.type.refsem.UmlsConcept;
 import org.apache.ctakes.typesystem.type.textsem.*;
 import org.apache.uima.analysis_engine.AnalysisEngineProcessException;
@@ -62,6 +63,12 @@ final public class UmlsJsonFormatter implements ResponseFormatter {
       final public Boolean conditional;
       final public Boolean historic;
 
+      /** Drug NER dosage modifiers (MedicationMention only; null otherwise / when absent). */
+      final public String dose;
+      final public String strength;
+      final public String frequency;
+      final public String route;
+
       public Map<String, List<OntologyObject>> conceptMap;
 
       private UmlsObject( final IdentifiedAnnotation annotation ) {
@@ -74,6 +81,21 @@ final public class UmlsJsonFormatter implements ResponseFormatter {
          generic = booleanOrNull( IdentifiedAnnotationUtil.isGeneric( annotation ) );
          conditional = booleanOrNull( IdentifiedAnnotationUtil.isConditional( annotation ) );
          historic = booleanOrNull( IdentifiedAnnotationUtil.isHistoric( annotation ) );
+
+         if ( annotation instanceof MedicationMention ) {
+            final MedicationMention med = (MedicationMention) annotation;
+            dose = textOrNull( HandoverAssembler.extractDose( med ) );
+            final String strengthRaw = HandoverAssembler.extractStrength( med );
+            strength = textOrNull( strengthRaw == null ? null : strengthRaw.trim() );
+            frequency = textOrNull( HandoverAssembler.extractFrequency( med ) );
+            route = textOrNull( HandoverAssembler.extractRoute( med ) );
+         } else {
+            dose = null;
+            strength = null;
+            frequency = null;
+            route = null;
+         }
+
          conceptMap
                = OntologyConceptUtil.getUmlsConceptStream( annotation )
                                     .map( OntologyObject::new )
@@ -90,6 +112,10 @@ final public class UmlsJsonFormatter implements ResponseFormatter {
       // gson can ignore (not serialize) properties with null values.
       static private Boolean booleanOrNull( final boolean value ) {
          return value ? Boolean.TRUE : null;
+      }
+
+      static private String textOrNull( final String text ) {
+         return text == null || text.isEmpty() ? null : text;
       }
    }
 

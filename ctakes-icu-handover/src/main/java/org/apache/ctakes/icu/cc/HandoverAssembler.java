@@ -841,10 +841,6 @@ final public class HandoverAssembler {
       dto.strength = extractStrength( med );
       dto.frequency = extractFrequency( med );
       dto.route = extractRoute( med );
-      // Drug NER often emits bogus "3.0 day" for "every 8 hours" — clear and re-parse.
-      if ( !isBlank( dto.frequency ) && BROKEN_DAY_FREQ.matcher( dto.frequency.trim() ).matches() ) {
-         dto.frequency = null;
-      }
       final String after = truncateAtNextDrug(
             windowAfter( docText, med.getEnd(), MED_ATTR_WINDOW + 24 ), dto.text );
       // Drop Dose/Freq that Drug NER attached from a later drug in the same sentence.
@@ -1178,7 +1174,8 @@ final public class HandoverAssembler {
       return kept;
    }
 
-   static private String extractDose( final MedicationMention med ) {
+   /** CAS dosage modifier value — shared with UmlsJsonFormatter (map.entities). */
+   static public String extractDose( final MedicationMention med ) {
       final MedicationDosageModifier mod = med.getMedicationDosage();
       if ( mod == null || !(mod.getNormalizedForm() instanceof MedicationDosage) ) {
          return null;
@@ -1186,7 +1183,8 @@ final public class HandoverAssembler {
       return ( (MedicationDosage) mod.getNormalizedForm() ).getValue();
    }
 
-   static private String extractStrength( final MedicationMention med ) {
+   /** CAS strength (number + unit) — shared with UmlsJsonFormatter (map.entities). */
+   static public String extractStrength( final MedicationMention med ) {
       final MedicationStrengthModifier mod = med.getMedicationStrength();
       if ( mod == null || !(mod.getNormalizedForm() instanceof MedicationStrength) ) {
          return null;
@@ -1195,16 +1193,27 @@ final public class HandoverAssembler {
       return (s.getNumber() == null ? "" : s.getNumber()) + (s.getUnit() == null ? "" : " " + s.getUnit());
    }
 
-   static private String extractFrequency( final MedicationMention med ) {
+   /** CAS frequency — clears bogus Drug NER "N day" values. */
+   static public String extractFrequency( final MedicationMention med ) {
       final MedicationFrequencyModifier mod = med.getMedicationFrequency();
       if ( mod == null || !(mod.getNormalizedForm() instanceof MedicationFrequency) ) {
          return null;
       }
       final MedicationFrequency f = (MedicationFrequency) mod.getNormalizedForm();
-      return (f.getNumber() == null ? "" : f.getNumber()) + (f.getUnit() == null ? "" : " " + f.getUnit());
+      final String raw = (f.getNumber() == null ? "" : f.getNumber())
+            + (f.getUnit() == null ? "" : " " + f.getUnit());
+      if ( raw.isBlank() ) {
+         return null;
+      }
+      final String trimmed = raw.trim();
+      if ( BROKEN_DAY_FREQ.matcher( trimmed ).matches() ) {
+         return null;
+      }
+      return trimmed;
    }
 
-   static private String extractRoute( final MedicationMention med ) {
+   /** CAS route modifier value — shared with UmlsJsonFormatter (map.entities). */
+   static public String extractRoute( final MedicationMention med ) {
       final MedicationRouteModifier mod = med.getMedicationRoute();
       if ( mod == null || !(mod.getNormalizedForm() instanceof MedicationRoute) ) {
          return null;
