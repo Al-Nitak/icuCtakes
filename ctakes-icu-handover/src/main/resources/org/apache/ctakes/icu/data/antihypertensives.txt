@@ -2,6 +2,12 @@
 amlodipine||Amlodipine||C0051696||RXNORM||17767
 norvasc||Amlodipine||C0051696||RXNORM||17767
 labetalol||Labetalol||C0022860||RXNORM||6185
+# Speech/ASR garble for labetalol — never treat as clevidipine
+levatorol||Labetalol||C0022860||RXNORM||6185
+levantorol||Labetalol||C0022860||RXNORM||6185
+labatalol||Labetalol||C0022860||RXNORM||6185
+labetolol||Labetalol||C0022860||RXNORM||6185
+lebetalol||Labetalol||C0022860||RXNORM||6185
 hydralazine||Hydralazine||C0020223||RXNORM||5470
 metoprolol||Metoprolol||C0025859||RXNORM||6918
 lopressor||Metoprolol||C0025859||RXNORM||6918
