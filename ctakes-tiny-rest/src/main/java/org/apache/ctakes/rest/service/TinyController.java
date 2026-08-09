@@ -78,6 +78,7 @@ public class TinyController {
          case "pretty" -> RestPipelineRunner.getInstance().process( new PrettyPrintFormatter(), document, sectionPack );
          case "property" -> RestPipelineRunner.getInstance().process( new PropertyListFormatter(), document, sectionPack );
          case "umls" -> RestPipelineRunner.getInstance().process( new UmlsJsonFormatter(), document, sectionPack );
+         case "concepts" -> RestPipelineRunner.getInstance().process( new ConceptIndexFormatter(), document, sectionPack );
          case "cui" -> RestPipelineRunner.getInstance().process( new CuiListFormatter(), document, sectionPack );
          case "xmi" -> RestPipelineRunner.getInstance().process( new XmiFormatter(), document, sectionPack );
          case "handover" -> RestPipelineRunner.getInstance().process( new HandoverJsonFormatter(), document, sectionPack );

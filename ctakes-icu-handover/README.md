@@ -52,16 +52,46 @@ drug name — only explicit names are annotated.
 ```json
 {
   "schema": "ctakes.information-map/v1",
-  "handover": { "access": { "medications": [ ... ] }, ... },
-  "entities": { ... },
+  "documentId": "...",
+  "text": "...",
+  "sentences": [
+    { "id": 0, "begin": 0, "end": 116, "contentBegin": 0,
+      "sectionId": "SIMPLE_SEGMENT",
+      "text": "Regarding this patient, he was admitted after fourth ventricle tumor resection…" }
+  ],
+  "concepts": [
+    { "cui": "C0027651", "preferredText": "Neoplasms",
+      "codingScheme": "SNOMEDCT_US", "code": "108369006",
+      "tui": "T191", "semanticGroup": "Disorder", "semanticType": "Neoplastic Process",
+      "types": [ "DiseaseDisorderMention" ], "count": 3,
+      "sentenceIds": [ 0, 1 ],
+      "occurrences": [ { "begin": 63, "end": 68, "text": "tumor", "sentenceId": 0 } ] }
+  ],
+  "handover": { "access": { "medications": [ ... ] }, "situation": { "events": [ ... ] } },
+  "entities": { "DiseaseDisorderMention": [ { "begin": 63, "sentenceId": 0, "...": "..." } ] },
   "cuiCounts": { ... },
   "fhir": { ... },
   "views": { "pretty": "...", "property": "..." }
 }
 ```
 
-- Use **`handover`** for clinical UI (including `access.medications`).
-- Use **`entities`** for raw UMLS spans (same payload as `format=umls`).
+### Which layer for which job
+
+| Layer | Use for |
+|-------|---------|
+| **`concepts`** | Knowledge search, drug interaction, differential diagnosis — one entry per unique CUI with coding + occurrence offsets |
+| **`sentences`** | Display narrative; join via `sentenceId` (0-based index into this array) |
+| **`handover`** | Clinical SBAR UI (including `access.medications`) |
+| **`entities`** | Raw UMLS spans (same payload as `format=umls`, now with `sentenceId`) |
+
+### Join rule
+
+`sentenceId` is the 0-based document-order index into `sentences[]`. Resolution is a direct array lookup. It is `null` when no covering sentence exists.
+
+- In **`format=map`**, `sentences` is top-level (hoisted out of `handover` so sentence text appears once).
+- In **`format=handover`**, `sentences` stays inline at `handover.sentences`.
+- Standalone CUI rollup: `format=concepts`.
+
 - Do **not** treat the top-level map body as the old umls-only JSON.
 - Rails error `no usable umls response` usually means the client parsed the wrong shape
   or got an HTTP/empty failure — read `entities` / check status, not the map root as umls.

@@ -3,9 +3,11 @@ package org.apache.ctakes.rest.service.response;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import org.apache.ctakes.core.util.doc.DocIdUtil;
 import org.apache.ctakes.icu.cc.HandoverAssembler;
+import org.apache.ctakes.icu.util.SentenceIndex;
 import org.apache.uima.analysis_engine.AnalysisEngineProcessException;
 import org.apache.uima.jcas.JCas;
 
@@ -24,13 +26,15 @@ import java.util.TreeMap;
  *   "schema": "ctakes.information-map/v1",
  *   "documentId": "...",
  *   "text": "...",
- *   "handover": { ... },      // ICU SBAR structure (what Smart-Handover consumes)
- *   "entities": { ... },      // UMLS mention map by type
- *   "cuiCounts": { ... },     // CUI → frequency
- *   "fhir": { ... },          // FHIR Bundle
+ *   "sentences": [ ... ],   // shared narrative index; items join via sentenceId
+ *   "concepts": [ ... ],    // CUI rollup for knowledge expansion
+ *   "handover": { ... },    // ICU SBAR structure (what Smart-Handover consumes)
+ *   "entities": { ... },    // UMLS mention map by type
+ *   "cuiCounts": { ... },   // CUI → frequency
+ *   "fhir": { ... },        // FHIR Bundle
  *   "views": {
- *     "pretty": "...",        // ASCII span view
- *     "property": "..."       // readable property list
+ *     "pretty": "...",      // ASCII span view
+ *     "property": "..."     // readable property list
  *   },
  *   "meta": { "layers": [...], "omitted": ["xmi"] }
  * }
@@ -42,6 +46,8 @@ final public class InformationMapFormatter implements ResponseFormatter {
 
    @Override
    public String getResultText( final JCas jCas ) throws AnalysisEngineProcessException {
+      final SentenceIndex sentenceIndex = SentenceIndex.of( jCas );
+
       final Map<String, Object> map = new LinkedHashMap<>();
       map.put( "schema", "ctakes.information-map/v1" );
       map.put( "documentId", DocIdUtil.getDocumentID( jCas ) );
@@ -49,11 +55,24 @@ final public class InformationMapFormatter implements ResponseFormatter {
       map.put( "text", text );
       map.put( "textLength", text == null ? 0 : text.length() );
 
-      // Clinical structure (primary for your app)
-      map.put( "handover", parseJson( HandoverAssembler.createJson( jCas ) ) );
+      // Shared narrative index (hoisted out of handover so sentence text appears once)
+      map.put( "sentences", sentenceIndex.sentences() );
+
+      // CUI rollup for knowledge search / drug interaction / differential diagnosis
+      map.put( "concepts", parseJson( new ConceptIndexFormatter( sentenceIndex ).getResultText( jCas ) ) );
+
+      // Clinical structure — strip embedded sentences to avoid duplicating the top-level array
+      final JsonElement handoverEl = parseJson( HandoverAssembler.createJson( jCas, sentenceIndex ) );
+      if ( handoverEl != null && handoverEl.isJsonObject() ) {
+         final JsonObject handoverObj = handoverEl.getAsJsonObject();
+         handoverObj.remove( "sentences" );
+         map.put( "handover", handoverObj );
+      } else {
+         map.put( "handover", handoverEl );
+      }
 
       // Span-level coded entities
-      map.put( "entities", parseJson( new UmlsJsonFormatter().getResultText( jCas ) ) );
+      map.put( "entities", parseJson( new UmlsJsonFormatter( sentenceIndex ).getResultText( jCas ) ) );
 
       // Vocabulary frequency
       map.put( "cuiCounts", parseCuiCounts( new CuiListFormatter().getResultText( jCas ) ) );
@@ -68,9 +87,11 @@ final public class InformationMapFormatter implements ResponseFormatter {
       map.put( "views", views );
 
       final Map<String, Object> meta = new LinkedHashMap<>();
-      meta.put( "layers", Arrays.asList( "handover", "entities", "cuiCounts", "fhir", "views" ) );
+      meta.put( "layers", Arrays.asList(
+            "sentences", "concepts", "handover", "entities", "cuiCounts", "fhir", "views" ) );
       meta.put( "omitted", Arrays.asList( "xmi" ) );
-      meta.put( "note", "XMI omitted (full CAS dump). Use format=xmi when needed." );
+      meta.put( "note", "XMI omitted (full CAS dump). Use format=xmi when needed. "
+            + "Join concepts/entities/handover items to sentences[] via sentenceId." );
       map.put( "meta", meta );
 
       return GSON.toJson( map );

@@ -5,6 +5,7 @@ import org.apache.ctakes.core.util.annotation.IdentifiedAnnotationUtil;
 import org.apache.ctakes.core.util.annotation.OntologyConceptUtil;
 import org.apache.ctakes.core.util.annotation.SemanticTui;
 import org.apache.ctakes.icu.cc.HandoverAssembler;
+import org.apache.ctakes.icu.util.SentenceIndex;
 import org.apache.ctakes.typesystem.type.refsem.UmlsConcept;
 import org.apache.ctakes.typesystem.type.textsem.*;
 import org.apache.uima.analysis_engine.AnalysisEngineProcessException;
@@ -33,6 +34,16 @@ final public class UmlsJsonFormatter implements ResponseFormatter {
          MedicationMention.class
    );
 
+   private final SentenceIndex sentenceIndex;
+
+   public UmlsJsonFormatter() {
+      this( null );
+   }
+
+   public UmlsJsonFormatter( final SentenceIndex sentenceIndex ) {
+      this.sentenceIndex = sentenceIndex;
+   }
+
 
    /**
     * Returns UMLS identified annotation information formatted in json.
@@ -40,10 +51,11 @@ final public class UmlsJsonFormatter implements ResponseFormatter {
     */
    @Override
    public String getResultText( final JCas jCas ) throws AnalysisEngineProcessException {
+      final SentenceIndex sentences = sentenceIndex != null ? sentenceIndex : SentenceIndex.of( jCas );
       final Map<String, List<UmlsObject>> umlsMap
             = JCasUtil.select( jCas, IdentifiedAnnotation.class ).stream()
                       .filter( a -> WANTED_CLASSES.contains( a.getClass() ) )
-                      .map( UmlsObject::new )
+                      .map( a -> new UmlsObject( a, sentences ) )
                       .collect( Collectors.groupingBy( UmlsObject::getType ) );
       return new GsonBuilder()
             .setPrettyPrinting()
@@ -62,6 +74,7 @@ final public class UmlsJsonFormatter implements ResponseFormatter {
       final public Boolean generic;
       final public Boolean conditional;
       final public Boolean historic;
+      final public Integer sentenceId;
 
       /** Drug NER dosage modifiers (MedicationMention only; null otherwise / when absent). */
       final public String dose;
@@ -72,6 +85,10 @@ final public class UmlsJsonFormatter implements ResponseFormatter {
       public Map<String, List<OntologyObject>> conceptMap;
 
       private UmlsObject( final IdentifiedAnnotation annotation ) {
+         this( annotation, null );
+      }
+
+      private UmlsObject( final IdentifiedAnnotation annotation, final SentenceIndex sentences ) {
          _type = annotation.getClass().getSimpleName();
          begin = annotation.getBegin();
          end = annotation.getEnd();
@@ -81,6 +98,7 @@ final public class UmlsJsonFormatter implements ResponseFormatter {
          generic = booleanOrNull( IdentifiedAnnotationUtil.isGeneric( annotation ) );
          conditional = booleanOrNull( IdentifiedAnnotationUtil.isConditional( annotation ) );
          historic = booleanOrNull( IdentifiedAnnotationUtil.isHistoric( annotation ) );
+         sentenceId = sentences != null ? sentences.idFor( begin, end ) : null;
 
          if ( annotation instanceof MedicationMention ) {
             final MedicationMention med = (MedicationMention) annotation;
