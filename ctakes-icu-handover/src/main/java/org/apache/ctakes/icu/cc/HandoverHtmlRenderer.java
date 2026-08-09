@@ -1,6 +1,10 @@
 package org.apache.ctakes.icu.cc;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -62,9 +66,9 @@ final public class HandoverHtmlRenderer {
 
    static private String renderBackground( final HandoverDocument doc ) {
       final StringBuilder sb = new StringBuilder();
-      appendConceptList( sb, "Conditions / comorbidities", doc.background.conditions );
-      appendConceptList( sb, "Prior procedures", doc.background.priorProcedures );
-      appendConceptList( sb, "Functional status", doc.background.functionalStatus );
+      appendConceptList( sb, "Conditions / comorbidities", doc.background.conditions, doc.sentences );
+      appendConceptList( sb, "Prior procedures", doc.background.priorProcedures, doc.sentences );
+      appendConceptList( sb, "Functional status", doc.background.functionalStatus, doc.sentences );
       return sb.toString();
    }
 
@@ -74,7 +78,41 @@ final public class HandoverHtmlRenderer {
       }
       final StringBuilder sb = new StringBuilder();
       sb.append( "<ol class=\"timeline\">\n" );
+      final Map<Integer, List<HandoverDocument.EventDto>> grouped = new LinkedHashMap<>();
+      final List<HandoverDocument.EventDto> ungrouped = new ArrayList<>();
       for ( HandoverDocument.EventDto e : doc.situation.events ) {
+         if ( e.sentenceId != null ) {
+            grouped.computeIfAbsent( e.sentenceId, k -> new ArrayList<>() ).add( e );
+         } else {
+            ungrouped.add( e );
+         }
+      }
+      for ( Map.Entry<Integer, List<HandoverDocument.EventDto>> entry : grouped.entrySet() ) {
+         final HandoverDocument.SentenceDto sentence = sentenceById( doc.sentences, entry.getKey() );
+         final List<SpanMark> marks = new ArrayList<>();
+         String badge = null;
+         for ( HandoverDocument.EventDto e : entry.getValue() ) {
+            marks.add( new SpanMark( e.begin, e.end, e.text ) );
+            if ( badge == null && e.docTimeRel != null && !e.docTimeRel.isEmpty() ) {
+               badge = e.docTimeRel;
+            }
+         }
+         sb.append( "<li>" );
+         if ( sentence != null && sentence.text != null && !sentence.text.isBlank() ) {
+            sb.append( "<span class=\"sentence\">" );
+            appendMarkedSentence( sb, sentence, marks );
+            sb.append( "</span>" );
+         } else {
+            sb.append( entry.getValue().stream()
+                  .map( e -> esc( e.text ) )
+                  .collect( Collectors.joining( "; " ) ) );
+         }
+         if ( badge != null ) {
+            sb.append( " <span class=\"badge\">" ).append( esc( badge ) ).append( "</span>" );
+         }
+         sb.append( "</li>\n" );
+      }
+      for ( HandoverDocument.EventDto e : ungrouped ) {
          sb.append( "<li><span class=\"event-text\">" ).append( esc( e.text ) ).append( "</span>" );
          if ( e.docTimeRel != null && !e.docTimeRel.isEmpty() ) {
             sb.append( " <span class=\"badge\">" ).append( esc( e.docTimeRel ) ).append( "</span>" );
@@ -90,7 +128,7 @@ final public class HandoverHtmlRenderer {
 
    static private String renderAssessment( final HandoverDocument doc ) {
       final StringBuilder sb = new StringBuilder();
-      appendConceptList( sb, "Working diagnosis / problem list", doc.assessment.problems );
+      appendConceptList( sb, "Working diagnosis / problem list", doc.assessment.problems, doc.sentences );
       return sb.toString();
    }
 
@@ -121,7 +159,7 @@ final public class HandoverHtmlRenderer {
          }
          sb.append( "</p>\n" );
       }
-      appendConceptList( sb, "Findings", cns.findings );
+      appendConceptList( sb, "Findings", cns.findings, null );
       appendMedTable( sb, cns.medications );
       return sb.toString();
    }
@@ -197,7 +235,7 @@ final public class HandoverHtmlRenderer {
 
    static private String renderHeme( final HandoverDocument.HematologyDto heme ) {
       final StringBuilder sb = new StringBuilder();
-      appendConceptList( sb, "Coagulation / labs", heme.coagStatus );
+      appendConceptList( sb, "Coagulation / labs", heme.coagStatus, null );
       appendMedTable( sb, heme.anticoagulants );
       if ( heme.cultures != null && !heme.cultures.isEmpty() ) {
          sb.append( "<h3>Cultures</h3>\n<table>\n<thead><tr>" );
@@ -284,23 +322,141 @@ final public class HandoverHtmlRenderer {
    }
 
    static private void appendConceptList( final StringBuilder sb, final String heading,
-                                          final List<HandoverDocument.ConceptDto> concepts ) {
+                                          final List<HandoverDocument.ConceptDto> concepts,
+                                          final List<HandoverDocument.SentenceDto> sentences ) {
       if ( concepts == null || concepts.isEmpty() ) {
          return;
       }
-      sb.append( "<h3>" ).append( esc( heading ) ).append( "</h3>\n<ul>\n" );
-      for ( HandoverDocument.ConceptDto c : concepts ) {
-         final String label = firstNonBlank( c.preferredText, c.text );
-         sb.append( "<li>" ).append( esc( label ) );
-         if ( c.cui != null && !c.cui.isEmpty() ) {
-            sb.append( " <span class=\"muted\">" ).append( esc( c.cui ) ).append( "</span>" );
+      sb.append( "<h3>" ).append( esc( heading ) ).append( "</h3>\n" );
+      if ( sentences == null || sentences.isEmpty()
+            || concepts.stream().noneMatch( c -> c.sentenceId != null ) ) {
+         sb.append( "<ul>\n" );
+         for ( HandoverDocument.ConceptDto c : concepts ) {
+            appendConceptBullet( sb, c );
          }
-         if ( c.locations != null && !c.locations.isEmpty() ) {
-            sb.append( " <span class=\"badge\">@" ).append( esc( join( c.locations ) ) ).append( "</span>" );
+         sb.append( "</ul>\n" );
+         return;
+      }
+
+      final Map<Integer, List<HandoverDocument.ConceptDto>> grouped = new LinkedHashMap<>();
+      final List<HandoverDocument.ConceptDto> ungrouped = new ArrayList<>();
+      for ( HandoverDocument.ConceptDto c : concepts ) {
+         if ( c.sentenceId != null ) {
+            grouped.computeIfAbsent( c.sentenceId, k -> new ArrayList<>() ).add( c );
+         } else {
+            ungrouped.add( c );
+         }
+      }
+      sb.append( "<ul class=\"sentence-list\">\n" );
+      for ( Map.Entry<Integer, List<HandoverDocument.ConceptDto>> entry : grouped.entrySet() ) {
+         final HandoverDocument.SentenceDto sentence = sentenceById( sentences, entry.getKey() );
+         sb.append( "<li>" );
+         if ( sentence != null && sentence.text != null && !sentence.text.isBlank() ) {
+            final List<SpanMark> marks = new ArrayList<>();
+            for ( HandoverDocument.ConceptDto c : entry.getValue() ) {
+               marks.add( new SpanMark( c.begin, c.end, c.text ) );
+            }
+            sb.append( "<span class=\"sentence\">" );
+            appendMarkedSentence( sb, sentence, marks );
+            sb.append( "</span>" );
+            for ( HandoverDocument.ConceptDto c : entry.getValue() ) {
+               final String label = firstNonBlank( c.preferredText, c.text );
+               if ( c.cui != null && !c.cui.isEmpty() ) {
+                  sb.append( " <span class=\"muted\">" ).append( esc( label ) )
+                        .append( " " ).append( esc( c.cui ) ).append( "</span>" );
+               }
+            }
+         } else {
+            for ( int i = 0; i < entry.getValue().size(); i++ ) {
+               if ( i > 0 ) {
+                  sb.append( "; " );
+               }
+               appendConceptInline( sb, entry.getValue().get( i ) );
+            }
          }
          sb.append( "</li>\n" );
       }
+      for ( HandoverDocument.ConceptDto c : ungrouped ) {
+         appendConceptBullet( sb, c );
+      }
       sb.append( "</ul>\n" );
+   }
+
+   static private void appendConceptBullet( final StringBuilder sb, final HandoverDocument.ConceptDto c ) {
+      final String label = firstNonBlank( c.preferredText, c.text );
+      sb.append( "<li>" ).append( esc( label ) );
+      if ( c.cui != null && !c.cui.isEmpty() ) {
+         sb.append( " <span class=\"muted\">" ).append( esc( c.cui ) ).append( "</span>" );
+      }
+      if ( c.locations != null && !c.locations.isEmpty() ) {
+         sb.append( " <span class=\"badge\">@" ).append( esc( join( c.locations ) ) ).append( "</span>" );
+      }
+      sb.append( "</li>\n" );
+   }
+
+   static private void appendConceptInline( final StringBuilder sb, final HandoverDocument.ConceptDto c ) {
+      final String label = firstNonBlank( c.preferredText, c.text );
+      sb.append( esc( label ) );
+      if ( c.cui != null && !c.cui.isEmpty() ) {
+         sb.append( " <span class=\"muted\">" ).append( esc( c.cui ) ).append( "</span>" );
+      }
+   }
+
+   /**
+    * Escape slices around marked spans separately so HTML escaping cannot shift offsets.
+    */
+   static private void appendMarkedSentence( final StringBuilder sb,
+                                             final HandoverDocument.SentenceDto sentence,
+                                             final List<SpanMark> marks ) {
+      final String raw = sentence.text;
+      if ( raw == null || raw.isEmpty() ) {
+         return;
+      }
+      final List<SpanMark> sorted = new ArrayList<>();
+      for ( SpanMark mark : marks ) {
+         final int relBegin = mark.begin - sentence.contentBegin;
+         final int relEnd = mark.end - sentence.contentBegin;
+         if ( relBegin < 0 || relEnd > raw.length() || relBegin >= relEnd ) {
+            continue;
+         }
+         sorted.add( new SpanMark( relBegin, relEnd, mark.label ) );
+      }
+      sorted.sort( Comparator.comparingInt( m -> m.begin ) );
+      final List<SpanMark> kept = new ArrayList<>();
+      int cursor = 0;
+      for ( SpanMark mark : sorted ) {
+         if ( mark.begin < cursor ) {
+            continue;
+         }
+         kept.add( mark );
+         cursor = mark.end;
+      }
+      int pos = 0;
+      for ( SpanMark mark : kept ) {
+         if ( mark.begin > pos ) {
+            sb.append( esc( raw.substring( pos, mark.begin ) ) );
+         }
+         sb.append( "<mark>" ).append( esc( raw.substring( mark.begin, mark.end ) ) ).append( "</mark>" );
+         pos = mark.end;
+      }
+      if ( pos < raw.length() ) {
+         sb.append( esc( raw.substring( pos ) ) );
+      }
+   }
+
+   static private HandoverDocument.SentenceDto sentenceById(
+         final List<HandoverDocument.SentenceDto> sentences, final Integer id ) {
+      if ( sentences == null || id == null || id < 0 || id >= sentences.size() ) {
+         return null;
+      }
+      final HandoverDocument.SentenceDto s = sentences.get( id );
+      if ( s != null && s.id == id ) {
+         return s;
+      }
+      return sentences.stream()
+            .filter( x -> x.id == id )
+            .findFirst()
+            .orElse( null );
    }
 
    static private void appendMedTable( final StringBuilder sb, final List<HandoverDocument.MedDto> meds ) {
@@ -365,6 +521,18 @@ final public class HandoverHtmlRenderer {
             .replace( "<", "&lt;" )
             .replace( ">", "&gt;" )
             .replace( "\"", "&quot;" );
+   }
+
+   static private final class SpanMark {
+      final int begin;
+      final int end;
+      final String label;
+
+      SpanMark( final int begin, final int end, final String label ) {
+         this.begin = begin;
+         this.end = end;
+         this.label = label;
+      }
    }
 
    static private final String CSS = """
@@ -458,5 +626,11 @@ final public class HandoverHtmlRenderer {
          .empty { color: var(--muted); font-style: italic; margin: 0; }
          .timeline { list-style: decimal; }
          .section-text { white-space: pre-wrap; }
+         .sentence { display: inline; }
+         mark {
+           background: #fff3bf;
+           padding: 0 0.1em;
+           border-radius: 2px;
+         }
          """;
 }

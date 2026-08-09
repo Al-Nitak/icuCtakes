@@ -15,6 +15,7 @@ import org.apache.ctakes.icu.type.UrineOutputMention;
 import org.apache.ctakes.icu.type.VascularAccessMention;
 import org.apache.ctakes.icu.type.VentSupportMention;
 import org.apache.ctakes.icu.util.LexiconLoader;
+import org.apache.ctakes.icu.util.SentenceIndex;
 import org.apache.ctakes.typesystem.type.refsem.Event;
 import org.apache.ctakes.typesystem.type.refsem.EventProperties;
 import org.apache.ctakes.typesystem.type.refsem.MedicationDosage;
@@ -38,7 +39,6 @@ import org.apache.ctakes.typesystem.type.textsem.ProcedureMention;
 import org.apache.ctakes.typesystem.type.textsem.SignSymptomMention;
 import org.apache.ctakes.typesystem.type.textsem.TimeMention;
 import org.apache.ctakes.typesystem.type.textspan.Segment;
-import org.apache.ctakes.typesystem.type.textspan.Sentence;
 import org.apache.uima.fit.util.JCasUtil;
 import org.apache.uima.jcas.JCas;
 import org.apache.uima.jcas.cas.StringArray;
@@ -143,6 +143,13 @@ final public class HandoverAssembler {
          "analgesic", "analgesics", "medication", "medications", "drug", "drugs",
          "dose", "dosage", "form", "solution", "cream", "ointment" );
 
+   /** Content-free event hits that clutter the Situation timeline. */
+   static private final Set<String> JUNK_EVENT_TEXTS = setOf(
+         "history", "normal", "scan", "level of consciousness", "consciousness" );
+
+   static private final Set<String> JUNK_EVENT_CUIS = setOf(
+         "C0262926", "C0231683", "C0034606", "C0234425" );
+
    static private final Set<String> BACKGROUND_SECTIONS = setOf(
          "background", "past medical history", "pmh", "pmhx", "patient history", "clinical history" );
    static private final Set<String> ASSESSMENT_SECTIONS = setOf(
@@ -161,13 +168,23 @@ final public class HandoverAssembler {
       return GSON.toJson( createDocument( jCas ) );
    }
 
+   static public String createJson( final JCas jCas, final SentenceIndex sentenceIndex ) {
+      return GSON.toJson( createDocument( jCas, sentenceIndex ) );
+   }
+
    static public HandoverDocument createDocument( final JCas jCas ) {
+      return createDocument( jCas, SentenceIndex.of( jCas ) );
+   }
+
+   static public HandoverDocument createDocument( final JCas jCas, final SentenceIndex sentenceIndex ) {
       final HandoverDocument doc = new HandoverDocument();
       doc.documentId = DocIdUtil.getDocumentID( jCas );
       final String docText = jCas.getDocumentText();
+      final SentenceIndex sentences = sentenceIndex != null ? sentenceIndex : SentenceIndex.of( jCas );
 
       final Map<IdentifiedAnnotation, List<String>> locations = buildLocationIndex( jCas );
       final List<Segment> segments = new ArrayList<>( JCasUtil.select( jCas, Segment.class ) );
+      doc.sentences = new ArrayList<>( sentences.sentences() );
 
       for ( Segment segment : segments ) {
          final HandoverDocument.SectionDto s = new HandoverDocument.SectionDto();
@@ -180,7 +197,7 @@ final public class HandoverAssembler {
       }
 
       for ( DiseaseDisorderMention dd : JCasUtil.select( jCas, DiseaseDisorderMention.class ) ) {
-         final HandoverDocument.ConceptDto concept = toConcept( dd, locations );
+         final HandoverDocument.ConceptDto concept = toConcept( dd, locations, sentences );
          if ( IdentifiedAnnotationUtil.isHistoric( dd ) || inSections( dd, segments, BACKGROUND_SECTIONS ) ) {
             doc.background.conditions.add( concept );
          }
@@ -201,24 +218,29 @@ final public class HandoverAssembler {
          if ( imagingOverlaps( doc, study.getBegin(), study.getEnd() ) ) {
             continue;
          }
-         doc.imaging.add( toImagingFromStudy( jCas, study, locations ) );
+         doc.imaging.add( toImagingFromStudy( jCas, study, locations, sentences ) );
       }
 
       for ( ProcedureMention proc : JCasUtil.select( jCas, ProcedureMention.class ) ) {
-         final HandoverDocument.ConceptDto concept = toConcept( proc, locations );
+         final HandoverDocument.ConceptDto concept = toConcept( proc, locations, sentences );
          if ( IdentifiedAnnotationUtil.isHistoric( proc ) || inSections( proc, segments, BACKGROUND_SECTIONS ) ) {
             doc.background.priorProcedures.add( concept );
          }
-         final HandoverDocument.EventDto event = toEvent( proc );
-         doc.situation.events.add( event );
+         final HandoverDocument.EventDto event = toEvent( null, proc, sentences );
+         if ( !isJunkEvent( event ) ) {
+            doc.situation.events.add( event );
+         }
          if ( !imagingOverlaps( doc, proc.getBegin(), proc.getEnd() ) ) {
-            maybeAddImaging( jCas, doc, proc, locations );
+            maybeAddImaging( jCas, doc, proc, locations, sentences );
          }
       }
 
       for ( SignSymptomMention ss : JCasUtil.select( jCas, SignSymptomMention.class ) ) {
-         final HandoverDocument.ConceptDto concept = toConcept( ss, locations );
-         doc.situation.events.add( toEvent( jCas, ss ) );
+         final HandoverDocument.ConceptDto concept = toConcept( ss, locations, sentences );
+         final HandoverDocument.EventDto event = toEvent( jCas, ss, sentences );
+         if ( !isJunkEvent( event ) ) {
+            doc.situation.events.add( event );
+         }
          if ( inSections( ss, segments, CNS_SECTIONS ) ) {
             doc.systems.cns.findings.add( concept );
          }
@@ -230,14 +252,14 @@ final public class HandoverAssembler {
 
       for ( LabMention lab : JCasUtil.select( jCas, LabMention.class ) ) {
          if ( textLooksCoag( lab.getCoveredText() ) ) {
-            doc.systems.hematology.coagStatus.add( toConcept( lab, locations ) );
+            doc.systems.hematology.coagStatus.add( toConcept( lab, locations, sentences ) );
          }
       }
 
       // Medications by class / section — also keep full list under access.medications
       final List<HandoverDocument.MedDto> allMeds = new ArrayList<>();
       for ( MedicationMention med : JCasUtil.select( jCas, MedicationMention.class ) ) {
-         final HandoverDocument.MedDto medDto = toMed( med, segments, docText );
+         final HandoverDocument.MedDto medDto = toMed( med, segments, docText, sentences );
          if ( isJunkMedication( medDto ) || !keepMedication( medDto ) ) {
             continue;
          }
@@ -282,6 +304,7 @@ final public class HandoverAssembler {
          dto.code = labVal.getCode();
          dto.begin = labVal.getBegin();
          dto.end = labVal.getEnd();
+         dto.sentenceId = sentences.idFor( dto.begin, dto.end );
          doc.systems.labs.add( dto );
       }
 
@@ -302,6 +325,7 @@ final public class HandoverAssembler {
          dto.text = gcs.getCoveredText();
          dto.begin = gcs.getBegin();
          dto.end = gcs.getEnd();
+         dto.sentenceId = sentences.idFor( dto.begin, dto.end );
          // keep last / most recent by offset
          doc.systems.cns.gcs = dto;
       }
@@ -312,6 +336,7 @@ final public class HandoverAssembler {
          dto.text = vent.getCoveredText();
          dto.begin = vent.getBegin();
          dto.end = vent.getEnd();
+         dto.sentenceId = sentences.idFor( dto.begin, dto.end );
          if ( vent.getRr() != 0.0f ) {
             dto.settings.put( "rr", vent.getRr() );
          }
@@ -338,6 +363,7 @@ final public class HandoverAssembler {
          dto.text = feed.getCoveredText();
          dto.begin = feed.getBegin();
          dto.end = feed.getEnd();
+         dto.sentenceId = sentences.idFor( dto.begin, dto.end );
          if ( doc.systems.gi.feeding == null
                || (dto.route != null && doc.systems.gi.feeding.route == null)
                || (dto.formula != null && doc.systems.gi.feeding.formula == null) ) {
@@ -360,6 +386,7 @@ final public class HandoverAssembler {
          dto.text = uop.getCoveredText();
          dto.begin = uop.getBegin();
          dto.end = uop.getEnd();
+         dto.sentenceId = sentences.idFor( dto.begin, dto.end );
          doc.systems.gu.urineOutput = dto;
       }
 
@@ -375,6 +402,7 @@ final public class HandoverAssembler {
          dto.text = culture.getCoveredText();
          dto.begin = culture.getBegin();
          dto.end = culture.getEnd();
+         dto.sentenceId = sentences.idFor( dto.begin, dto.end );
          final StringArray sens = culture.getSensitivities();
          if ( sens != null ) {
             for ( int i = 0; i < sens.size(); i++ ) {
@@ -390,6 +418,7 @@ final public class HandoverAssembler {
          dto.text = line.getCoveredText();
          dto.begin = line.getBegin();
          dto.end = line.getEnd();
+         dto.sentenceId = sentences.idFor( dto.begin, dto.end );
          if ( line.getInsertTime() != null ) {
             dto.insertDate = new HandoverDocument.TimeDto();
             dto.insertDate.text = line.getInsertTime().getCoveredText();
@@ -410,12 +439,20 @@ final public class HandoverAssembler {
          dto.text = item.getActionText() != null ? item.getActionText() : item.getCoveredText();
          dto.begin = item.getBegin();
          dto.end = item.getEnd();
+         dto.sentenceId = sentences.idFor( dto.begin, dto.end );
          doc.plan.items.add( dto );
       }
 
       doc.situation.events = mergeAdjacentSituationEvents( jCas, doc.situation.events );
+      // Re-resolve sentence ids after merge so the id matches the final merged span.
+      for ( HandoverDocument.EventDto event : doc.situation.events ) {
+         event.sentenceId = sentences.idFor( event.begin, event.end );
+      }
       doc.situation.events.sort( Comparator.comparingInt( e -> e.begin ) );
       doc.imaging = dedupeImaging( doc.imaging );
+      for ( HandoverDocument.ImagingDto img : doc.imaging ) {
+         img.findings = dedupeConceptsByOverlap( img.findings );
+      }
       dedupeAssessment( doc );
       return doc;
    }
@@ -423,7 +460,8 @@ final public class HandoverAssembler {
    static private void maybeAddImaging( final JCas jCas,
                                         final HandoverDocument doc,
                                         final ProcedureMention proc,
-                                        final Map<IdentifiedAnnotation, List<String>> locations ) {
+                                        final Map<IdentifiedAnnotation, List<String>> locations,
+                                        final SentenceIndex sentences ) {
       final String text = proc.getCoveredText();
       if ( text == null || !IMAGING.matcher( text ).find() ) {
          return;
@@ -432,13 +470,14 @@ final public class HandoverAssembler {
       img.procedureText = text;
       img.begin = proc.getBegin();
       img.end = proc.getEnd();
+      img.sentenceId = sentences.idFor( img.begin, img.end );
       img.modality = detectModality( text );
       img.bodySite = parseBodySiteFromText( text );
       final List<String> locs = locations.get( proc );
       if ( img.bodySite == null && locs != null && !locs.isEmpty() ) {
          img.bodySite = locs.get( 0 );
       }
-      attachSentenceFindings( jCas, img, locations );
+      attachSentenceFindings( jCas, img, locations, sentences );
       for ( TimeMention time : JCasUtil.select( jCas, TimeMention.class ) ) {
          if ( Math.abs( time.getBegin() - proc.getBegin() ) < 100 ) {
             img.date = new HandoverDocument.TimeDto();
@@ -452,14 +491,16 @@ final public class HandoverAssembler {
    static private HandoverDocument.ImagingDto toImagingFromStudy(
          final JCas jCas,
          final ImagingStudyMention study,
-         final Map<IdentifiedAnnotation, List<String>> locations ) {
+         final Map<IdentifiedAnnotation, List<String>> locations,
+         final SentenceIndex sentences ) {
       final HandoverDocument.ImagingDto img = new HandoverDocument.ImagingDto();
       img.modality = study.getModality() != null ? study.getModality() : detectModality( study.getCoveredText() );
       img.procedureText = study.getCoveredText() != null ? study.getCoveredText().trim() : null;
       img.begin = study.getBegin();
       img.end = study.getEnd();
+      img.sentenceId = sentences.idFor( img.begin, img.end );
       img.bodySite = parseBodySiteFromText( study.getCoveredText() );
-      attachSentenceFindings( jCas, img, locations );
+      attachSentenceFindings( jCas, img, locations, sentences );
       for ( TimeMention time : JCasUtil.selectCovered( jCas, TimeMention.class, study ) ) {
          img.date = new HandoverDocument.TimeDto();
          img.date.text = time.getCoveredText();
@@ -471,26 +512,18 @@ final public class HandoverAssembler {
    static private void attachSentenceFindings(
          final JCas jCas,
          final HandoverDocument.ImagingDto img,
-         final Map<IdentifiedAnnotation, List<String>> locations ) {
-      final List<Sentence> sentences = new ArrayList<>( JCasUtil.select( jCas, Sentence.class ) );
-      Sentence primary = null;
-      for ( Sentence sentence : sentences ) {
-         if ( img.begin < sentence.getEnd() && img.end > sentence.getBegin() ) {
-            primary = sentence;
-            break;
-         }
-      }
+         final Map<IdentifiedAnnotation, List<String>> locations,
+         final SentenceIndex sentences ) {
+      final Integer primaryId = sentences.idFor( img.begin, img.end );
+      final HandoverDocument.SentenceDto primary = sentences.get( primaryId );
       if ( primary == null ) {
          return;
       }
-      attachCoveredFindings( jCas, img, primary.getBegin(), primary.getEnd(), locations );
-      final int idx = sentences.indexOf( primary );
-      if ( idx >= 0 && idx + 1 < sentences.size() ) {
-         final Sentence next = sentences.get( idx + 1 );
-         final String nextText = next.getCoveredText();
-         if ( nextText != null && FINDING_CONTINUATION.matcher( nextText.trim() ).find() ) {
-            attachCoveredFindings( jCas, img, next.getBegin(), next.getEnd(), locations );
-         }
+      attachCoveredFindings( jCas, img, primary.begin, primary.end, locations, sentences );
+      final HandoverDocument.SentenceDto next = sentences.next( primaryId );
+      if ( next != null && next.text != null
+            && FINDING_CONTINUATION.matcher( next.text.trim() ).find() ) {
+         attachCoveredFindings( jCas, img, next.begin, next.end, locations, sentences );
       }
    }
 
@@ -543,15 +576,16 @@ final public class HandoverAssembler {
          final HandoverDocument.ImagingDto img,
          final int begin,
          final int end,
-         final Map<IdentifiedAnnotation, List<String>> locations ) {
+         final Map<IdentifiedAnnotation, List<String>> locations,
+         final SentenceIndex sentences ) {
       for ( DiseaseDisorderMention dd : JCasUtil.select( jCas, DiseaseDisorderMention.class ) ) {
          if ( dd.getBegin() >= begin && dd.getEnd() <= end ) {
-            addFindingUnique( img, toConcept( dd, locations ) );
+            addFindingUnique( img, toConcept( dd, locations, sentences ) );
          }
       }
       for ( SignSymptomMention ss : JCasUtil.select( jCas, SignSymptomMention.class ) ) {
          if ( ss.getBegin() >= begin && ss.getEnd() <= end ) {
-            addFindingUnique( img, toConcept( ss, locations ) );
+            addFindingUnique( img, toConcept( ss, locations, sentences ) );
          }
       }
    }
@@ -630,7 +664,8 @@ final public class HandoverAssembler {
    }
 
    static private HandoverDocument.ConceptDto toConcept( final IdentifiedAnnotation ann,
-                                                         final Map<IdentifiedAnnotation, List<String>> locations ) {
+                                                         final Map<IdentifiedAnnotation, List<String>> locations,
+                                                         final SentenceIndex sentences ) {
       final HandoverDocument.ConceptDto dto = new HandoverDocument.ConceptDto();
       dto.text = ann.getCoveredText();
       dto.begin = ann.getBegin();
@@ -655,11 +690,14 @@ final public class HandoverAssembler {
       if ( locs != null && !locs.isEmpty() ) {
          dto.locations = new ArrayList<>( locs );
       }
+      if ( sentences != null ) {
+         dto.sentenceId = sentences.idFor( dto.begin, dto.end );
+      }
       return dto;
    }
 
    static private HandoverDocument.EventDto toEvent( final EventMention mention ) {
-      return toEvent( null, mention );
+      return toEvent( null, mention, null );
    }
 
    /**
@@ -667,6 +705,11 @@ final public class HandoverAssembler {
     * severity relation, the span is expanded to cover both finding and modifier.
     */
    static private HandoverDocument.EventDto toEvent( final JCas jCas, final EventMention mention ) {
+      return toEvent( jCas, mention, null );
+   }
+
+   static private HandoverDocument.EventDto toEvent( final JCas jCas, final EventMention mention,
+                                                    final SentenceIndex sentences ) {
       final HandoverDocument.EventDto dto = new HandoverDocument.EventDto();
       int begin = mention.getBegin();
       int end = mention.getEnd();
@@ -689,6 +732,9 @@ final public class HandoverAssembler {
          if ( props != null ) {
             dto.docTimeRel = props.getDocTimeRel();
          }
+      }
+      if ( sentences != null ) {
+         dto.sentenceId = sentences.idFor( dto.begin, dto.end );
       }
       return dto;
    }
@@ -815,12 +861,14 @@ final public class HandoverAssembler {
       dto.time = src.time;
       dto.begin = src.begin;
       dto.end = src.end;
+      dto.sentenceId = src.sentenceId;
       return dto;
    }
 
    static private HandoverDocument.MedDto toMed( final MedicationMention med,
                                                  final List<Segment> segments,
-                                                 final String docText ) {
+                                                 final String docText,
+                                                 final SentenceIndex sentences ) {
       final HandoverDocument.MedDto dto = new HandoverDocument.MedDto();
       dto.text = med.getCoveredText();
       dto.begin = med.getBegin();
@@ -868,6 +916,9 @@ final public class HandoverAssembler {
          }
       }
       dto.drugClass = classifyDrug( med.getCoveredText(), dto.preferredText );
+      if ( sentences != null ) {
+         dto.sentenceId = sentences.idFor( dto.begin, dto.end );
+      }
       return dto;
    }
 
@@ -1268,20 +1319,59 @@ final public class HandoverAssembler {
             || t.contains( "coag" ) || t.contains( "aPTT".toLowerCase() );
    }
 
+   static private boolean isJunkEvent( final HandoverDocument.EventDto event ) {
+      if ( event == null || isBlank( event.text ) ) {
+         return true;
+      }
+      final String t = event.text.trim().toLowerCase( Locale.ROOT );
+      if ( JUNK_EVENT_TEXTS.contains( t ) ) {
+         return true;
+      }
+      return event.cui != null && JUNK_EVENT_CUIS.contains( event.cui );
+   }
+
    static private boolean overlaps( final HandoverDocument.ConceptDto a, final HandoverDocument.ConceptDto b ) {
       return a.begin == b.begin && a.end == b.end;
    }
 
+   /** Prefer longer spans when assessment problems overlap / nest. */
    static private void dedupeAssessment( final HandoverDocument doc ) {
-      final Set<String> seen = new HashSet<>();
-      final List<HandoverDocument.ConceptDto> unique = new ArrayList<>();
-      for ( HandoverDocument.ConceptDto p : doc.assessment.problems ) {
-         final String key = p.begin + ":" + p.end + ":" + p.text;
-         if ( seen.add( key ) ) {
-            unique.add( p );
+      doc.assessment.problems = dedupeConceptsByOverlap( doc.assessment.problems );
+   }
+
+   /**
+    * Longest-span-first overlap filter — same shape as {@link #dedupeMedications} /
+    * {@link #dedupeImaging}. Package-visible for unit tests.
+    */
+   static List<HandoverDocument.ConceptDto> dedupeConceptsByOverlap(
+         final List<HandoverDocument.ConceptDto> concepts ) {
+      if ( concepts == null || concepts.size() <= 1 ) {
+         return concepts == null ? new ArrayList<>() : new ArrayList<>( concepts );
+      }
+      final List<HandoverDocument.ConceptDto> sorted = new ArrayList<>( concepts );
+      sorted.sort( ( a, b ) -> {
+         final int lenA = a.end - a.begin;
+         final int lenB = b.end - b.begin;
+         if ( lenB != lenA ) {
+            return Integer.compare( lenB, lenA );
+         }
+         return Integer.compare( a.begin, b.begin );
+      } );
+      final List<HandoverDocument.ConceptDto> kept = new ArrayList<>();
+      for ( HandoverDocument.ConceptDto concept : sorted ) {
+         boolean overlaps = false;
+         for ( HandoverDocument.ConceptDto existing : kept ) {
+            if ( concept.begin < existing.end && concept.end > existing.begin ) {
+               overlaps = true;
+               break;
+            }
+         }
+         if ( !overlaps ) {
+            kept.add( concept );
          }
       }
-      doc.assessment.problems = unique;
+      kept.sort( Comparator.comparingInt( c -> c.begin ) );
+      return kept;
    }
 
    static private Set<String> setOf( final String... values ) {
