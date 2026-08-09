@@ -12,6 +12,8 @@ public class HandoverDocument {
 
    public String documentId;
    public List<SectionDto> sections = new ArrayList<>();
+   /** Document-order sentences; items reference these via {@code sentenceId}. */
+   public List<SentenceDto> sentences = new ArrayList<>();
    public BackgroundDto background = new BackgroundDto();
    public SituationDto situation = new SituationDto();
    public AssessmentDto assessment = new AssessmentDto();
@@ -26,6 +28,20 @@ public class HandoverDocument {
       public String tagText;
       public int begin;
       public int end;
+   }
+
+   public static class SentenceDto {
+      public int id;
+      public String text;
+      /** CAS begin of the Sentence annotation. */
+      public int begin;
+      public int end;
+      /**
+       * CAS offset where {@link #text} starts (after trim / section-header strip).
+       * Use this — not {@link #begin} — when mapping concept spans into {@link #text}.
+       */
+      public int contentBegin;
+      public String sectionId;
    }
 
    public static class ConceptDto {
@@ -43,6 +59,7 @@ public class HandoverDocument {
       public Integer historyOf;
       public String sectionId;
       public List<String> locations;
+      public Integer sentenceId;
    }
 
    public static class MedDto {
@@ -59,6 +76,7 @@ public class HandoverDocument {
       public String route;
       public String sectionId;
       public String drugClass;
+      public Integer sentenceId;
    }
 
    public static class EventDto {
@@ -69,6 +87,7 @@ public class HandoverDocument {
       public TimeDto time;
       public int begin;
       public int end;
+      public Integer sentenceId;
    }
 
    public static class TimeDto {
@@ -112,6 +131,7 @@ public class HandoverDocument {
       public String text;
       public int begin;
       public int end;
+      public Integer sentenceId;
    }
 
    public static class CvsDto {
@@ -131,6 +151,7 @@ public class HandoverDocument {
       public String text;
       public int begin;
       public int end;
+      public Integer sentenceId;
    }
 
    public static class GiDto {
@@ -144,6 +165,7 @@ public class HandoverDocument {
       public String text;
       public int begin;
       public int end;
+      public Integer sentenceId;
    }
 
    public static class GuDto {
@@ -157,6 +179,7 @@ public class HandoverDocument {
       public String text;
       public int begin;
       public int end;
+      public Integer sentenceId;
    }
 
    public static class HematologyDto {
@@ -176,6 +199,7 @@ public class HandoverDocument {
       public String code;
       public int begin;
       public int end;
+      public Integer sentenceId;
    }
 
    public static class CultureDto {
@@ -190,6 +214,7 @@ public class HandoverDocument {
       public String text;
       public int begin;
       public int end;
+      public Integer sentenceId;
    }
 
    public static class AccessDto {
@@ -210,6 +235,7 @@ public class HandoverDocument {
       public String code;
       public int begin;
       public int end;
+      public Integer sentenceId;
    }
 
    public static class ImagingDto {
@@ -220,6 +246,7 @@ public class HandoverDocument {
       public String procedureText;
       public int begin;
       public int end;
+      public Integer sentenceId;
    }
 
    public static class PlanDto {
@@ -231,5 +258,6 @@ public class HandoverDocument {
       public String text;
       public int begin;
       public int end;
+      public Integer sentenceId;
    }
 }
