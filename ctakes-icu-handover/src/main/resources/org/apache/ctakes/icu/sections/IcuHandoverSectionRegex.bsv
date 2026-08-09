@@ -14,7 +14,7 @@ Culture||^[\t ]*CULTURES?[\t ]*:?[\t ]*$
 LINE||^[\t ]*(?:LINES?|ACCESS|VASCULAR ACCESS)[\t ]*:?[\t ]*$
 Abx||^[\t ]*(?:ABX|ANTIBIOTICS?(?:\/ANTIFUNGALS?)?)[\t ]*:?[\t ]*$
 Imaging||^[\t ]*(?:IMAGING|RADIOLOGY|STUDIES)[\t ]*:?[\t ]*$
-Plan||^[\t ]*(?:ASSESSMENT AND )?PLAN[\t ]*:?[\t ]*$
+Plan||^[\t ]*(?:ASSESSMENT AND PLAN|CARE\s+PLAN(?:\s+FOR\s+(?:TODAY|THE\s+DAY))?|PLAN|RECOMMENDATIONS?|TO ?DO|PENDING|NEXT STEPS)[\t ]*:?(?:[\t ]*$|\s+)
 Past Medical History||^[\t ]*(?:(?:PMHX?)|(?:HISTORY OF (?:THE )?PAST ILLNESS)|(?:PAST MEDICAL HISTORY)|(?:BACKGROUND))[\t ]*:?[\t ]*$
 History of Present Illness||^[\t ]*(?:(?:CC\/HPI:)|(?:S:)|(?:(?:HISTORY OF (?:THE )?(?:PRESENT |PHYSICAL )?ILLNESS)(?: \(HPI(?:, PROBLEM BY PROBLEM)?\))?[\t ]*:?))[\t ]*$
 Hospital Course||^[\t ]*(?:BRIEF|HISTORY|HX)? ?HOSPITAL COURSE[\t ]*:?[\t ]*$

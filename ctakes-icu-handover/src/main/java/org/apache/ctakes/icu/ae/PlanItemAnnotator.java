@@ -26,10 +26,45 @@ final public class PlanItemAnnotator extends JCasAnnotator_ImplBase {
 
    static private final Logger LOGGER = LoggerFactory.getLogger( PlanItemAnnotator.class );
 
-   static private final Pattern IMPERATIVE = Pattern.compile(
-         "^(?:continue|start|stop|hold|increase|decrease|wean|extubate|consult|follow|monitor|"
-               + "repeat|obtain|order|keep|maintain|titrate|d/c|discontinue)\\b",
+   /**
+    * Plan section header regex — keep in sync with
+    * {@code IcuHandoverSectionRegex.bsv} Plan line.
+    */
+   static final String PLAN_HEADER_REGEX =
+         "^[\\t ]*(?:ASSESSMENT AND PLAN|CARE\\s+PLAN(?:\\s+FOR\\s+(?:TODAY|THE\\s+DAY))?|PLAN|"
+               + "RECOMMENDATIONS?|TO ?DO|PENDING|NEXT STEPS)[\\t ]*:?(?:[\\t ]*$|\\s+)";
+
+   static final Pattern PLAN_HEADER = Pattern.compile(
+         PLAN_HEADER_REGEX, Pattern.MULTILINE | Pattern.CASE_INSENSITIVE );
+
+   /**
+    * Leading narrative / imperative cues used when no Plan section is present.
+    * Allows "We will/are/continue …", "We have (not) initiated/started/added …",
+    * and "For &lt;topic&gt;, we will/are/continue …"; avoids bare "Regarding …".
+    */
+   static final Pattern IMPERATIVE = Pattern.compile(
+         "^(?:for\\s+[\\w-]{1,24}(?:\\s+[\\w-]{1,24}){0,3},\\s*)?we\\s+(?:will|are|continue)\\b"
+               + "|^we\\s+have\\s+(?:not\\s+)?(?:initiated|started|added)\\b"
+               + "|^(?:continue|start|stop|hold|increase|decrease|wean|extubate|consult|follow|monitor|"
+               + "repeat|obtain|order|keep|maintain|titrate|d/c|discontinue|initiate|add|administer|"
+               + "insert|escalate)\\b",
          Pattern.CASE_INSENSITIVE );
+
+   /** Package-visible for unit tests. */
+   static boolean matchesPlanCue( final String text ) {
+      if ( text == null ) {
+         return false;
+      }
+      return IMPERATIVE.matcher( text.trim() ).find();
+   }
+
+   /** Package-visible for unit tests. */
+   static boolean matchesPlanHeader( final String text ) {
+      if ( text == null ) {
+         return false;
+      }
+      return PLAN_HEADER.matcher( text ).find();
+   }
 
    @Override
    public void process( final JCas jCas ) throws AnalysisEngineProcessException {
@@ -46,7 +81,7 @@ final public class PlanItemAnnotator extends JCasAnnotator_ImplBase {
       if ( !fromSection ) {
          for ( Sentence sentence : JCasUtil.select( jCas, Sentence.class ) ) {
             final String text = sentence.getCoveredText().trim();
-            if ( IMPERATIVE.matcher( text ).find() ) {
+            if ( matchesPlanCue( text ) ) {
                addPlanItem( jCas, sentence.getBegin(), sentence.getEnd(), text );
             }
          }
