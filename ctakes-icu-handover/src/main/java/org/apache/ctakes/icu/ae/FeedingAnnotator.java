@@ -9,6 +9,8 @@ import org.apache.uima.analysis_engine.AnalysisEngineProcessException;
 import org.apache.uima.fit.component.JCasAnnotator_ImplBase;
 import org.apache.uima.jcas.JCas;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -33,6 +35,9 @@ final public class FeedingAnnotator extends JCasAnnotator_ImplBase {
    static private final Set<String> FORMULAS
          = LexiconLoader.loadCodedTokenSet( "org/apache/ctakes/icu/data/feeding_formulas.txt" );
 
+   /** Word-boundary patterns for formula tokens (avoids "vitally" → Vital). */
+   static private final List<Pattern> FORMULA_PATTERNS = buildFormulaPatterns();
+
    @Override
    public void process( final JCas jCas ) throws AnalysisEngineProcessException {
       final String text = jCas.getDocumentText();
@@ -50,20 +55,40 @@ final public class FeedingAnnotator extends JCasAnnotator_ImplBase {
          mention.addToIndexes();
       }
 
-      // Formula-only mentions
-      final String lower = text.toLowerCase();
-      for ( String formula : FORMULAS ) {
-         int idx = 0;
-         while ( (idx = lower.indexOf( formula, idx )) >= 0 ) {
-            final int end = idx + formula.length();
-            // skip if already covered by a route mention window — still add for recall
-            final FeedingMention mention = new FeedingMention( jCas, idx, end );
-            mention.setFormula( text.substring( idx, end ) );
+      // Formula-only mentions — whole-word matches only.
+      for ( Pattern formulaPattern : FORMULA_PATTERNS ) {
+         final Matcher matcher = formulaPattern.matcher( text );
+         while ( matcher.find() ) {
+            final FeedingMention mention = new FeedingMention( jCas, matcher.start(), matcher.end() );
+            mention.setFormula( text.substring( matcher.start(), matcher.end() ) );
             mention.addToIndexes();
-            idx = end;
          }
       }
       LOGGER.debug( "Feeding annotation complete." );
+   }
+
+   static private List<Pattern> buildFormulaPatterns() {
+      final List<Pattern> patterns = new ArrayList<>();
+      for ( String formula : FORMULAS ) {
+         if ( formula == null || formula.isEmpty() ) {
+            continue;
+         }
+         patterns.add( formulaPattern( formula ) );
+      }
+      return List.copyOf( patterns );
+   }
+
+   /** Public for unit tests: whole-word match for a lexicon formula token. */
+   static public Pattern formulaPattern( final String formula ) {
+      return Pattern.compile( "\\b" + Pattern.quote( formula ) + "\\b", Pattern.CASE_INSENSITIVE );
+   }
+
+   /** True when {@code formula} appears as a whole word in {@code text}. */
+   static public boolean matchesFormulaToken( final String text, final String formula ) {
+      if ( text == null || formula == null || formula.isEmpty() ) {
+         return false;
+      }
+      return formulaPattern( formula ).matcher( text ).find();
    }
 
    static private String normalizeRoute( final String raw ) {
@@ -87,9 +112,8 @@ final public class FeedingAnnotator extends JCasAnnotator_ImplBase {
    }
 
    static private String findFormula( final String window ) {
-      final String lower = window.toLowerCase();
       for ( String formula : FORMULAS ) {
-         if ( lower.contains( formula ) ) {
+         if ( matchesFormulaToken( window, formula ) ) {
             return formula;
          }
       }

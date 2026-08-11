@@ -875,6 +875,7 @@ final public class HandoverAssembler {
       dto.end = med.getEnd();
       dto.sectionId = med.getSegmentID();
       dto.preferredText = IdentifiedAnnotationUtil.getPreferredText( med );
+      dto.polarity = IdentifiedAnnotationUtil.isNegated( med ) ? -1 : 1;
       final UmlsConcept umls = OntologyConceptUtil.getUmlsConceptStream( med ).findFirst().orElse( null );
       if ( umls != null ) {
          dto.cui = umls.getCui();

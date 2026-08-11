@@ -77,6 +77,8 @@ public class HandoverDocument {
       public String sectionId;
       public String drugClass;
       public Integer sentenceId;
+      /** 1 = affirmed, -1 = negated (NegEx / cTAKES polarity). */
+      public Integer polarity;
    }
 
    public static class EventDto {
