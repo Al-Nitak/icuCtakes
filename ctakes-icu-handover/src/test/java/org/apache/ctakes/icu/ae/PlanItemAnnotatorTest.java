@@ -4,6 +4,7 @@ import org.junit.Test;
 
 import java.util.regex.Pattern;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -54,6 +55,27 @@ public class PlanItemAnnotatorTest {
             "For analgesia, we are maintaining paracetamol 1 g Q8H." ) );
       assertTrue( PlanItemAnnotator.matchesPlanCue( "Continue propofol infusion." ) );
       assertTrue( PlanItemAnnotator.matchesPlanCue( "Initiate enteral feeding." ) );
+   }
+
+   @Test
+   public void planCueMatchesWeStartAndKeep() {
+      assertTrue( PlanItemAnnotator.matchesPlanCue(
+            "We start the patient on a high-protein regular diet." ) );
+      assertTrue( PlanItemAnnotator.matchesPlanCue(
+            "We keep him on paracetamol 1 g Q8H." ) );
+      assertTrue( PlanItemAnnotator.matchesPlanCue(
+            "We give him an insulin infusion." ) );
+   }
+
+   @Test
+   public void stripPlanHeaderLeavesRemainder() {
+      assertEquals(
+            "We start the patient on a high-protein diet.",
+            PlanItemAnnotator.stripPlanHeader(
+                  "Care plan for today: We start the patient on a high-protein diet." ) );
+      assertEquals(
+            "Continue fluids.",
+            PlanItemAnnotator.stripPlanHeader( "PLAN: Continue fluids." ) );
    }
 
    @Test

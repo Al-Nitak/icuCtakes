@@ -28,6 +28,10 @@ final public class VentSupportAnnotator extends JCasAnnotator_ImplBase {
                + "mechanical\\s+ventilation|room\\s+air|\\bNC\\b|nasal\\s+cannula|NIV)\\b",
          Pattern.CASE_INSENSITIVE );
 
+   /** Lookbehind for "not on / isn't on / is not on" mechanical ventilation. */
+   static final Pattern NEGATED_SUPPORT = Pattern.compile(
+         "(?i)\\b(?:not\\s+on|isn't\\s+on|is\\s+not\\s+on|aren't\\s+on|are\\s+not\\s+on)\\b" );
+
    static private final Pattern RR = Pattern.compile(
          "(?:set\\s+)?(?:RR|respiratory\\s+rate)\\s*(?:of|=|:)?\\s*(\\d{1,2})", Pattern.CASE_INSENSITIVE );
    static private final Pattern TV = Pattern.compile(
@@ -39,6 +43,30 @@ final public class VentSupportAnnotator extends JCasAnnotator_ImplBase {
    static private final Pattern PEEP = Pattern.compile(
          "PEEP\\s*(?:of|=|:)?\\s*(\\d{1,2})", Pattern.CASE_INSENSITIVE );
 
+   /** Package-visible for unit tests. */
+   static boolean isNegatedSupport( final String text, final int matchStart ) {
+      if ( text == null || matchStart <= 0 ) {
+         return false;
+      }
+      final int from = Math.max( 0, matchStart - 48 );
+      String lookbehind = text.substring( from, matchStart );
+      // Never read a negation across a sentence boundary:
+      // "Not on pressors. Now on mechanical ventilation" is affirmed.
+      final int boundary = lastSentenceBoundary( lookbehind );
+      if ( boundary >= 0 ) {
+         lookbehind = lookbehind.substring( boundary + 1 );
+      }
+      return NEGATED_SUPPORT.matcher( lookbehind ).find();
+   }
+
+   static private int lastSentenceBoundary( final String text ) {
+      int last = -1;
+      for ( final char c : new char[]{ '.', ';', '!', '?', '\n' } ) {
+         last = Math.max( last, text.lastIndexOf( c ) );
+      }
+      return last;
+   }
+
    @Override
    public void process( final JCas jCas ) throws AnalysisEngineProcessException {
       final String text = jCas.getDocumentText();
@@ -49,6 +77,9 @@ final public class VentSupportAnnotator extends JCasAnnotator_ImplBase {
       final Matcher modeMatcher = MODE_PATTERN.matcher( text );
       boolean any = false;
       while ( modeMatcher.find() ) {
+         if ( isNegatedSupport( text, modeMatcher.start() ) ) {
+            continue;
+         }
          any = true;
          final int begin = modeMatcher.start();
          final int end = Math.min( text.length(), modeMatcher.end() + 120 );

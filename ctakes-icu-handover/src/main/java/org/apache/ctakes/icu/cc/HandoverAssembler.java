@@ -443,6 +443,9 @@ final public class HandoverAssembler {
          doc.plan.items.add( dto );
       }
 
+      // Plan-owned sentences must not also appear as Situation / Assessment.
+      dropPlanOverlaps( doc );
+
       doc.situation.events = mergeAdjacentSituationEvents( jCas, doc.situation.events );
       // Re-resolve sentence ids after merge so the id matches the final merged span.
       for ( HandoverDocument.EventDto event : doc.situation.events ) {
@@ -455,6 +458,42 @@ final public class HandoverAssembler {
       }
       dedupeAssessment( doc );
       return doc;
+   }
+
+   /** Remove Situation events / Assessment problems that overlap a PlanItem span. */
+   static private void dropPlanOverlaps( final HandoverDocument doc ) {
+      if ( doc.plan.items == null || doc.plan.items.isEmpty() ) {
+         return;
+      }
+      if ( doc.situation.events != null && !doc.situation.events.isEmpty() ) {
+         final List<HandoverDocument.EventDto> kept = new ArrayList<>();
+         for ( HandoverDocument.EventDto event : doc.situation.events ) {
+            if ( !overlapsAnyPlanItem( doc, event.begin, event.end ) ) {
+               kept.add( event );
+            }
+         }
+         doc.situation.events = kept;
+      }
+      if ( doc.assessment.problems != null && !doc.assessment.problems.isEmpty() ) {
+         final List<HandoverDocument.ConceptDto> kept = new ArrayList<>();
+         for ( HandoverDocument.ConceptDto problem : doc.assessment.problems ) {
+            if ( !overlapsAnyPlanItem( doc, problem.begin, problem.end ) ) {
+               kept.add( problem );
+            }
+         }
+         doc.assessment.problems = kept;
+      }
+   }
+
+   static private boolean overlapsAnyPlanItem( final HandoverDocument doc,
+                                               final int begin,
+                                               final int end ) {
+      for ( HandoverDocument.PlanItemDto item : doc.plan.items ) {
+         if ( begin < item.end && item.begin < end ) {
+            return true;
+         }
+      }
+      return false;
    }
 
    static private void maybeAddImaging( final JCas jCas,

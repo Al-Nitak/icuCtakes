@@ -11,7 +11,10 @@ import org.apache.uima.fit.component.JCasAnnotator_ImplBase;
 import org.apache.uima.fit.util.JCasUtil;
 import org.apache.uima.jcas.JCas;
 
+import java.util.HashSet;
 import java.util.Locale;
+import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -39,11 +42,11 @@ final public class PlanItemAnnotator extends JCasAnnotator_ImplBase {
 
    /**
     * Leading narrative / imperative cues used when no Plan section is present.
-    * Allows "We will/are/continue …", "We have (not) initiated/started/added …",
+    * Allows "We will/are/continue/start/keep …", "We have (not) initiated/started/added …",
     * and "For &lt;topic&gt;, we will/are/continue …"; avoids bare "Regarding …".
     */
    static final Pattern IMPERATIVE = Pattern.compile(
-         "^(?:for\\s+[\\w-]{1,24}(?:\\s+[\\w-]{1,24}){0,3},\\s*)?we\\s+(?:will|are|continue)\\b"
+         "^(?:for\\s+[\\w-]{1,24}(?:\\s+[\\w-]{1,24}){0,3},\\s*)?we\\s+(?:will|are|continue|start|keep|give|insert|sent)\\b"
                + "|^we\\s+have\\s+(?:not\\s+)?(?:initiated|started|added)\\b"
                + "|^(?:continue|start|stop|hold|increase|decrease|wean|extubate|consult|follow|monitor|"
                + "repeat|obtain|order|keep|maintain|titrate|d/c|discontinue|initiate|add|administer|"
@@ -66,27 +69,77 @@ final public class PlanItemAnnotator extends JCasAnnotator_ImplBase {
       return PLAN_HEADER.matcher( text ).find();
    }
 
+   /** Package-visible for unit tests — strip a leading plan header from inline dictation. */
+   static String stripPlanHeader( final String text ) {
+      if ( text == null ) {
+         return "";
+      }
+      final Matcher matcher = PLAN_HEADER.matcher( text.trim() );
+      if ( matcher.find() && matcher.start() == 0 ) {
+         return text.trim().substring( matcher.end() ).trim();
+      }
+      return text.trim();
+   }
+
    @Override
    public void process( final JCas jCas ) throws AnalysisEngineProcessException {
       boolean fromSection = false;
+      int addedFromSection = 0;
+      final Set<String> seen = new HashSet<>();
+
       for ( Segment segment : JCasUtil.select( jCas, Segment.class ) ) {
          if ( !isPlanSection( segment ) ) {
             continue;
          }
          fromSection = true;
-         for ( Sentence sentence : JCasUtil.selectCovered( jCas, Sentence.class, segment ) ) {
-            addPlanItem( jCas, sentence.getBegin(), sentence.getEnd(), sentence.getCoveredText() );
+         for ( Sentence sentence : JCasUtil.select( jCas, Sentence.class ) ) {
+            if ( !overlaps( sentence.getBegin(), sentence.getEnd(),
+                  segment.getBegin(), segment.getEnd() ) ) {
+               continue;
+            }
+            if ( addPlanSentence( jCas, sentence, seen ) ) {
+               addedFromSection++;
+            }
          }
       }
-      if ( !fromSection ) {
+
+      // Cue fallback when there is no Plan section, or the section matched but
+      // covered no sentences (same-line "Care plan for today: …").
+      if ( !fromSection || addedFromSection == 0 ) {
          for ( Sentence sentence : JCasUtil.select( jCas, Sentence.class ) ) {
             final String text = sentence.getCoveredText().trim();
-            if ( matchesPlanCue( text ) ) {
-               addPlanItem( jCas, sentence.getBegin(), sentence.getEnd(), text );
+            if ( matchesPlanHeader( text ) || matchesPlanCue( text ) ) {
+               addPlanSentence( jCas, sentence, seen );
             }
          }
       }
       LOGGER.debug( "Plan item annotation complete." );
+   }
+
+   static private boolean addPlanSentence( final JCas jCas,
+                                           final Sentence sentence,
+                                           final Set<String> seen ) {
+      final String raw = sentence.getCoveredText();
+      if ( raw == null ) {
+         return false;
+      }
+      final String action = stripPlanHeader( raw );
+      if ( action.isEmpty() ) {
+         return false;
+      }
+      final String key = action.toLowerCase( Locale.ROOT );
+      if ( !seen.add( key ) ) {
+         return false;
+      }
+      // Span the full sentence so overlap checks against NER still work;
+      // actionText carries the header-stripped plan line for the UI.
+      addPlanItem( jCas, sentence.getBegin(), sentence.getEnd(), action );
+      return true;
+   }
+
+   static private boolean overlaps( final int aBegin, final int aEnd,
+                                    final int bBegin, final int bEnd ) {
+      return aBegin < bEnd && bBegin < aEnd;
    }
 
    static private boolean isPlanSection( final Segment segment ) {
