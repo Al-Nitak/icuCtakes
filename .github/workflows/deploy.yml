@@ -84,8 +84,9 @@ jobs:
           MAVEN_OPTS: -Xmx3g
         run: mvn -B -ntp -pl "$MODULES" -am install -DskipTests -Dmaven.antrun.skip=true
 
+      # Not offline: -DskipTests above never fetched surefire's JUnit provider.
       - name: Unit-test the ICU handover module
-        run: mvn -B -ntp -o -pl ctakes-icu-handover test
+        run: mvn -B -ntp -pl ctakes-icu-handover test
 
       - name: Check the WAR and the prod piper
         run: |
