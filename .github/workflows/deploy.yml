@@ -75,10 +75,14 @@ jobs:
           restore-keys: |
             m2-${{ runner.os }}-
 
+      # maven.antrun.skip: the only Ant runs in this closure are ctakes-ytex's,
+      # and its pre-integration-test one builds an HSQLDB test database that
+      # fails on a clean machine. YTEX is not part of the Tiny REST pipeline and
+      # needs a database at runtime anyway; its jar is still built and packaged.
       - name: Build the deployed modules and everything they depend on
         env:
           MAVEN_OPTS: -Xmx3g
-        run: mvn -B -ntp -pl "$MODULES" -am install -DskipTests
+        run: mvn -B -ntp -pl "$MODULES" -am install -DskipTests -Dmaven.antrun.skip=true
 
       - name: Unit-test the ICU handover module
         run: mvn -B -ntp -o -pl ctakes-icu-handover test
