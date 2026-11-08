@@ -54,7 +54,8 @@
          <groupId>org.apache.ctakes</groupId>
          <artifactId>ctakes-user-resources</artifactId>
       </dependency>
-      <!-- Align Spring jars — parent BOM mixes 5.3 beans with 6.1 webmvc -->
+      <!-- Align Spring jars — parent BOM can mix versions; webmvc 6.2 needs
+           PreFlightRequestHandler from spring-web 6.2 (absent in 6.1). -->
       <dependency>
          <groupId>org.springframework</groupId>
          <artifactId>spring-beans</artifactId>
@@ -73,6 +74,11 @@
       <dependency>
          <groupId>org.springframework</groupId>
          <artifactId>spring-web</artifactId>
+         <version>6.1.11</version>
+      </dependency>
+      <dependency>
+         <groupId>org.springframework</groupId>
+         <artifactId>spring-webmvc</artifactId>
          <version>6.1.11</version>
       </dependency>
       <dependency>

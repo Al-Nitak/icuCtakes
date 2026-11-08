@@ -5,7 +5,12 @@ services:
       context: ../..
       dockerfile: ctakes-tiny-rest-war/docker/Dockerfile
     ports:
-      - "8080:8080"
+      # Default matches smart-handover's CTAKES_URL (host.docker.internal:8081).
+      - "${CTAKES_HOST_PORT:-8081}:8080"
+    volumes:
+      # UMLS sno_rx_16ab dictionary, set up once with setup-dictionary-volume.sh.
+      # Never rebuilt/re-pulled by a normal deploy.
+      - ctakes_dictionary:/opt/tomcat/resources/org/apache/ctakes/dictionary/lookup/fast
     environment:
       CTAKES_REST_PIPER: TinyRestPipeline.prod.piper
       # Set your UTS API key in the shell or a .env file (do not commit the key):
@@ -16,3 +21,7 @@ services:
         -Dctakes.rest.piper=TinyRestPipeline.prod.piper
         -Dctakes.umls_apikey=${CTAKES_UMLS_APIKEY}
     restart: unless-stopped
+
+volumes:
+  ctakes_dictionary:
+    external: true

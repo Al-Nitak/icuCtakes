@@ -194,3 +194,10 @@ output/ctakes-out/explore/08_icu_shahad/shahad_note.txt.handover.json
 output/ctakes-out/explore/08_icu_shahad/shahad_note.txt.pretty.html
 output/ctakes-out/explore/08_icu_shahad/shahad_note.txt.xmi
 output/ctakes-out/icd_test/icd_dictionary_umls.json
+
+# Local-only artifacts: never commit (2GB tarball, licensed UMLS zip, ICD HSQLDB, editor settings)
+/ctakes-tiny-rest.tar.gz
+/sno_rx_16ab.zip
+/scripts/ctakesicd2015/
+*.class
+.vscode/

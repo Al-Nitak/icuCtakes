@@ -8,3 +8,7 @@ output
 **/node_modules
 **/*.iml
 **/.DS_Store
+
+# UMLS sno_rx_16ab dictionary (~84MB) lives in the ctakes_dictionary Docker
+# volume (see docker/setup-dictionary-volume.sh), never in the image.
+resources/org/apache/ctakes/dictionary/
