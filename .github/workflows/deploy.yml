@@ -183,7 +183,8 @@ jobs:
 
           # Anything else holding our host port (the hand-started container this
           # deploy replaces) is stopped and told not to come back on reboot.
-          port=$(grep -s '^CTAKES_HOST_PORT=' .env | cut -d= -f2-); port="${port:-8081}"
+          # `|| true`: under set -e a no-match grep in an assignment aborts the script.
+          port=$(grep -s '^CTAKES_HOST_PORT=' .env | cut -d= -f2- || true); port="${port:-8081}"
           project=$(basename "$DEPLOY_PATH")
           for c in $(docker ps -q --filter "publish=${port}"); do
             if [[ "$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' "$c")" != "$project" ]]; then
@@ -202,7 +203,7 @@ jobs:
           ssh vps "DEPLOY_PATH='$DEPLOY_PATH' bash -s" <<'SMOKE'
           set -u
           cd "$DEPLOY_PATH"
-          port=$(grep -s '^CTAKES_HOST_PORT=' .env | cut -d= -f2-); port="${port:-8081}"
+          port=$(grep -s '^CTAKES_HOST_PORT=' .env | cut -d= -f2- || true); port="${port:-8081}"
           code=000
           for i in $(seq 1 36); do
             code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 \
