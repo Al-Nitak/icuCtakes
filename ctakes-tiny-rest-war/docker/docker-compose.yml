@@ -1,6 +1,10 @@
 services:
   ctakes-tiny-rest:
-    image: ctakes-tiny-rest:latest
+    # Built by .github/workflows/deploy.yml on GitHub's runners and pulled here.
+    # IMAGE_TAG comes from the .env next to this file; the deploy rewrites that
+    # one line. `build:` stays for local work: build-image.sh tags its image
+    # with this same name, so `docker compose up` uses it without pulling.
+    image: ghcr.io/al-nitak/ctakes-tiny-rest:${IMAGE_TAG:-latest}
     build:
       context: ../..
       dockerfile: ctakes-tiny-rest-war/docker/Dockerfile

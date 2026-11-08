@@ -1,42 +1,130 @@
 name: Build and deploy ctakes-tiny-rest
 
-# cTAKES Tiny REST backs smart-handover (CTAKES_URL -> this host, see
-# ../smart-handover/.env.production.example). Unlike smart-handover's own
-# deploy.yml, the image is built ON the VPS, not on GitHub's runners: the
-# Maven reactor needs a pre-populated local .m2 (every other ctakes module
-# already installed there) and the UMLS sno_rx_16ab dictionary, neither of
-# which is practical to reconstruct on a hosted runner on every push.
+# cTAKES Tiny REST backs smart-handover (its CTAKES_URL points at this host,
+# see ../smart-handover/.env.production.example). Same shape as smart-handover's
+# deploy.yml (ADR 0025 there): GitHub's runner compiles the reactor, builds the
+# image and pushes it to GHCR; the VPS only pulls and restarts. The VPS has no
+# JDK, Maven or source checkout and never needs one.
 #
-# Same deploy user/host/key convention as smart-handover's deploy.yml
-# (DEPLOY_HOST/PORT/USER/SSH_KEY secrets) — set them on this repo too,
-# pointing at the same VPS.
+# Why the runner builds the whole tree: the reactor is 7.0.0-SNAPSHOT and this
+# fork changes upstream modules (ctakes-core, ctakes-pbj, ...), so nothing can
+# come from Maven Central except the 5.0.0 model jars and the LVG resources.
+# `-am` compiles the five deployed modules' closure (~35 modules) from source.
+# Expect 15-25 minutes; ~/.m2 is cached between runs.
+#
+# The UMLS dictionary is not in the image. docker-compose.yml mounts the
+# ctakes_dictionary volume, created once per host with
+# setup-dictionary-volume.sh. The deploy refuses to start without it, and
+# without CTAKES_UMLS_APIKEY in $DEPLOY_PATH/.env.
+#
+# Secrets (same VPS and deploy user as smart-handover): DEPLOY_HOST,
+# DEPLOY_SSH_KEY; optional DEPLOY_PORT (22), DEPLOY_USER (deploy),
+# CTAKES_DEPLOY_PATH (/opt/ctakes-tiny-rest, must exist and be owned by the
+# deploy user). GITHUB_TOKEN pushes the image and logs the VPS into GHCR.
+#
+# Run by hand to redeploy an image that was built before: give its tag
+# (a commit SHA) as image_tag and the build is skipped.
 
 on:
   push:
     branches: [main]
     paths:
-      - "ctakes-icu-handover/**"
-      - "ctakes-examples/**"
-      - "ctakes-user-resources/**"
-      - "ctakes-tiny-rest/**"
-      - "ctakes-tiny-rest-war/**"
-      - "scripts/clean-tiny-rest.sh"
+      - "ctakes-*/**"
+      - "pom.xml"
       - ".github/workflows/deploy.yml"
   workflow_dispatch:
     inputs:
-      skip_build:
-        description: "Skip the Maven/Docker build, just restart the running container"
-        type: boolean
-        default: false
+      image_tag:
+        description: "Existing image tag (commit SHA) to deploy. Empty = build this commit."
+        required: false
+        default: ""
 
 concurrency:
   group: deploy-ctakes-tiny-rest
   cancel-in-progress: false
 
+env:
+  IMAGE_TAG: ${{ inputs.image_tag || github.sha }}
+  MODULES: ctakes-icu-handover,ctakes-examples,ctakes-user-resources,ctakes-tiny-rest,ctakes-tiny-rest-war
+
 jobs:
-  deploy:
-    name: Build + deploy on VPS
+  build:
+    name: Build image on GitHub
+    if: ${{ !inputs.image_tag }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      # Central downloads (model jars, LVG resources, plugins) are cached; our
+      # own 7.0.0-SNAPSHOT installs are not, so a stale sibling can never be
+      # picked up instead of this commit's source.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.m2/repository
+            !~/.m2/repository/org/apache/ctakes/**/7.0.0-SNAPSHOT
+          key: m2-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            m2-${{ runner.os }}-
+
+      - name: Build the deployed modules and everything they depend on
+        env:
+          MAVEN_OPTS: -Xmx3g
+        run: mvn -B -ntp -pl "$MODULES" -am install -DskipTests
+
+      - name: Unit-test the ICU handover module
+        run: mvn -B -ntp -o -pl ctakes-icu-handover test
+
+      - name: Check the WAR and the prod piper
+        run: |
+          test -f ctakes-tiny-rest-war/target/ctakes_tiny_rest.war
+          test -f ctakes-tiny-rest/src/user/resources/TinyRestPipeline.prod.piper
+          # The reactor regenerates resources/ from each module's src/user/resources;
+          # make sure the directory exists for the Dockerfile's COPY either way.
+          mkdir -p resources
+
+      - name: Image name (GHCR needs a lowercase owner)
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/ctakes-tiny-rest" >> "$GITHUB_ENV"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ctakes-tiny-rest-war/docker/Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ env.IMAGE_TAG }}
+            ${{ env.IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # Plain image manifests: older docker on the VPS pulls them without fuss.
+          provenance: false
+
+  deploy:
+    name: Pull + restart on VPS
+    needs: [build]
+    # After a successful build, or straight away when the build was skipped
+    # (redeploy of an existing tag).
+    if: ${{ always() && !cancelled() && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     env:
       DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
       DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
@@ -58,48 +146,73 @@ jobs:
             User $DEPLOY_USER
             IdentityFile ~/.ssh/id_deploy
             IdentitiesOnly yes
+            ServerAliveInterval 30
+            ServerAliveCountMax 10
           CFG
 
-      # Full source tree: the reactor build resolves sibling modules from the
-      # checkout. Never touches the repo-root resources/ (gitignored models;
-      # the dictionary lives in a volume, see docker/setup-dictionary-volume.sh)
-      # or any .env files on the VPS. The exclude is anchored with a leading
-      # slash on purpose: a bare "resources/" would also drop every module's
-      # src/main/resources and the prod piper that build-image.sh checks for.
-      - name: Ship source to VPS
-        if: ${{ !inputs.skip_build }}
+      # Only the compose file and the one-time dictionary script go to the VPS.
+      # Its .env (CTAKES_UMLS_APIKEY, optional CTAKES_HOST_PORT) is never touched
+      # except for the IMAGE_TAG line the deploy rewrites.
+      - name: Ship compose file
         run: |
           ssh vps "mkdir -p '$DEPLOY_PATH'"
-          rsync -az --delete \
-            --exclude='.git/' \
-            --exclude='.github/' \
-            --exclude='/resources/' \
-            --exclude='target/' \
-            --exclude='.vscode/' \
-            --exclude='.idea/' \
-            --exclude='.DS_Store' \
-            --exclude='.env' \
-            --exclude='*.env' \
-            ./ "vps:$DEPLOY_PATH/"
+          rsync -az ctakes-tiny-rest-war/docker/docker-compose.yml \
+                    ctakes-tiny-rest-war/docker/setup-dictionary-volume.sh \
+                    "vps:$DEPLOY_PATH/"
 
-      - name: Build image on VPS
-        if: ${{ !inputs.skip_build }}
-        run: ssh vps "cd '$DEPLOY_PATH' && ctakes-tiny-rest-war/docker/build-image.sh"
+      - name: Log the VPS into GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | ssh vps "docker login ghcr.io -u '${{ github.actor }}' --password-stdin"
 
-      - name: Restart service
-        run: ssh vps "cd '$DEPLOY_PATH' && docker compose -f ctakes-tiny-rest-war/docker/docker-compose.yml up -d"
-
-      - name: Smoke test
+      - name: Pull + restart
         run: |
-          ssh vps 'bash -s' <<'SMOKE'
-          set -e
-          port="${CTAKES_HOST_PORT:-8081}"
-          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 \
-                   -X POST "http://127.0.0.1:${port}/service/process?format=cui" -d "test" || true)
-          echo "$code  /service/process"
-          [[ $code == 200 ]]
+          ssh vps "DEPLOY_PATH='$DEPLOY_PATH' IMAGE_TAG='$IMAGE_TAG' bash -s" <<'REMOTE'
+          set -euo pipefail
+          cd "$DEPLOY_PATH"
+          touch .env
+          grep -q '^CTAKES_UMLS_APIKEY=.' .env || {
+            echo "CTAKES_UMLS_APIKEY is not set in $DEPLOY_PATH/.env" >&2; exit 1; }
+          docker volume inspect ctakes_dictionary >/dev/null 2>&1 || {
+            echo "Docker volume ctakes_dictionary is missing: run $DEPLOY_PATH/setup-dictionary-volume.sh /path/to/sno_rx_16ab.zip once" >&2; exit 1; }
+          sed -i '/^IMAGE_TAG=/d' .env
+          echo "IMAGE_TAG=$IMAGE_TAG" >> .env
+
+          # Anything else holding our host port (the hand-started container this
+          # deploy replaces) is stopped and told not to come back on reboot.
+          port=$(grep -s '^CTAKES_HOST_PORT=' .env | cut -d= -f2-); port="${port:-8081}"
+          project=$(basename "$DEPLOY_PATH")
+          for c in $(docker ps -q --filter "publish=${port}"); do
+            if [[ "$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' "$c")" != "$project" ]]; then
+              echo "Stopping $(docker inspect -f '{{.Name}}' "$c"), which holds :${port}"
+              docker update --restart=no "$c" >/dev/null || true
+              docker stop "$c"
+            fi
+          done
+
+          docker compose pull --quiet
+          docker compose up -d --no-build --remove-orphans
+          REMOTE
+
+      - name: Smoke test (cTAKES needs a few minutes to load the dictionary)
+        run: |
+          ssh vps "DEPLOY_PATH='$DEPLOY_PATH' bash -s" <<'SMOKE'
+          set -u
+          cd "$DEPLOY_PATH"
+          port=$(grep -s '^CTAKES_HOST_PORT=' .env | cut -d= -f2-); port="${port:-8081}"
+          code=000
+          for i in $(seq 1 36); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 \
+                     -X POST "http://127.0.0.1:${port}/service/process?format=cui" -d "test" || true)
+            if [[ "$code" == 200 ]]; then
+              echo "200  /service/process on :${port} after ~$((i * 10))s"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "cTAKES did not answer 200 on :${port} within 6 minutes (last code ${code})" >&2
+          docker compose logs --tail 60
+          exit 1
           SMOKE
 
       - name: Status
         if: always()
-        run: ssh vps "cd '$DEPLOY_PATH' && docker compose -f ctakes-tiny-rest-war/docker/docker-compose.yml ps" || true
+        run: ssh vps "cd '$DEPLOY_PATH' && docker compose ps" || true
