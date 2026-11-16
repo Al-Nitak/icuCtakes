@@ -44,6 +44,7 @@ import org.apache.uima.jcas.JCas;
 import org.apache.uima.jcas.cas.StringArray;
 import org.apache.uima.jcas.tcas.Annotation;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -109,34 +110,121 @@ final public class HandoverAssembler {
 
    /** Characters after a med mention to scan for dose / route / frequency. */
    static private final int MED_ATTR_WINDOW = 48;
-   /** Characters before a med mention to scan for route (e.g. oral vancomycin). */
+   /** Characters before a med mention to scan for a route or dose said ahead of the name. */
    static private final int MED_ATTR_WINDOW_BEFORE = 32;
+
+   /**
+    * Where one item's dosing words end. A full stop followed by whitespace counts whether or
+    * not a Sentence ends there: the sentence detector fuses "…(nil by mouth). She is on
+    * pantoprazole BID." into one sentence. A comma between digits ("5,000 units") is part of
+    * a number, not a break. The joining words start the next item or clause.
+    */
+   static private final Pattern PHRASE_BREAK = Pattern.compile(
+         "(?i)[.!?](?=\\s|$)|[;\\n\\r]|(?<!\\d),|,(?!\\d)|\\s[&+]\\s"
+               + "|\\b(?:and|plus|then|but|on|if|when|while|until|unless|because)\\b" );
 
    static private final Pattern FINDING_CONTINUATION = Pattern.compile(
          "^(?:it\\s+)?(?:showed|revealed|demonstrated|found|reported|with)\\b",
          Pattern.CASE_INSENSITIVE );
 
+   /** A number as it is said: {@code 5}, {@code 0.1}, {@code 5,000}. */
+   static private final String NUMBER = "(?:\\d{1,3}(?:,\\d{3})+|\\d+)(?:\\.\\d+)?";
+
+   static private final Pattern NUMBER_PATTERN = Pattern.compile( NUMBER );
+
    /**
-    * ICU dose/rate immediately after a drug name, e.g. {@code 5 mg/h}, {@code 2 g},
-    * {@code 0.1 mcg/kg/min}.
+    * Units a dose is said in. Litres are left out on purpose: "nasal cannula 2 litres" is an
+    * oxygen flow, not a dose of anything. Units only Drug NER knows (mEq, mmol) still arrive
+    * through its strength, checked against the number said here.
     */
-   static private final Pattern WINDOW_DOSE = Pattern.compile(
-         "(?i)(?:^|[\\s:=])(\\d+(?:\\.\\d+)?\\s*(?:mg|mcg|µg|ug|g|units?|u)"
-               + "(?:\\s*/\\s*(?:h|hr|hour|kg(?:\\s*/\\s*min)?|min))?)" );
+   static private final String DOSE_UNIT
+         = "(?:micrograms?|milligrams?|millilit(?:er|re)s?|grams?|units?"
+               + "|mcg|µg|μg|ug|mg|ml|gm|g|u)(?!\\p{L})";
+
+   /** {@code /h}, {@code /kg/min}, {@code per hour}, {@code per kg per minute}, {@code an hour}. */
+   static private final String DOSE_RATE
+         = "(?:(?:\\s*/\\s*|\\s+(?:per|an?)\\s+)"
+               + "(?:kilograms?|kg|minutes?|min|hours?|hrs?|h|day|dose)(?!\\p{L}))";
+
+   /**
+    * ICU dose/rate as said in a dosing phrase, e.g. {@code 5 mg/h}, {@code 2 g}, {@code 30 ml},
+    * {@code 2 to 4 mg}, {@code 0.1 mcg/kg/min}, {@code 100 ml per hour} — or a bare number.
+    * Groups: 1 the number, 2 the upper end of a range, 3 the unit when one was said.
+    */
+   static private final Pattern QUANTITY = Pattern.compile(
+         "(?i)(?<![\\w.,/])(" + NUMBER + ")(?:\\s*(?:-|–|to)\\s*(" + NUMBER + "))?"
+               + "(?:\\s*(" + DOSE_UNIT + ")" + DOSE_RATE + "{0,3})?" );
+
+   /** A number that counts time or occasions is not a dose: "every 8 hours", "for 5 days". */
+   static private final Pattern NOT_A_QUANTITY_AFTER = Pattern.compile(
+         "(?i)\\s*-?\\s*(?:hourly|hours?|hrs?|h|minutes?|mins?|days?|weeks?|months?|years?"
+               + "|times?|doses?|am|pm|percent)\\b|\\s*%|:\\d|\\p{L}" );
+
+   /** "q 8", "every 8", "day 3", "x 3" — and "from 0.1 to 0.2", a change rather than a dose. */
+   static private final Pattern NOT_A_QUANTITY_BEFORE = Pattern.compile(
+         "(?i)\\b(?:every|q|day|x|from)\\s*$" );
+
+   /** "15 mg/L" is a level, not a dose: the slash goes on to a unit no rate is said in. */
+   static private final Pattern CONCENTRATION_AFTER = Pattern.compile( "\\s*/\\s*\\p{L}" );
+
+   static private final String ROUTE_WORDS
+         = "IVP|IV|PO|SQ|SC|IM|NGT|NG|SL|PR|oral(?:ly)?|by\\s+mouth|intravenous(?:ly)?"
+               + "|subcutaneous(?:ly)?|intramuscular(?:ly)?|sublingual(?:ly)?|rectal(?:ly)?";
 
    static private final Pattern WINDOW_ROUTE = Pattern.compile(
-         "(?i)\\b(IVP|IV|PO|SQ|SC|IM|NGT|NG|SL|PR|oral|by\\s+mouth)\\b" );
+         "(?i)\\b(" + ROUTE_WORDS + ")\\b" );
+
+   /** "twice daily", "three times a day" — longest first, so they are never read as "daily". */
+   static private final String COUNT_PER_DAY
+         = "(once|twice|thrice)\\s+(?:daily|(?:a|per)\\s+day)"
+               + "|(one|two|three|four|\\d+)\\s+times?\\s+(?:daily|(?:a|per)\\s+day)";
+
+   static private final String FREQUENCY_WORDS
+         = COUNT_PER_DAY + "|q\\d+h?|bid|tid|qid|od|bd|tds|(?<!\\btimes?\\s{1,3})daily|prn|as\\s+needed"
+               + "|every\\s+\\d+\\s+(?:hours?|hrs?)|/24|/12|/8";
 
    static private final Pattern WINDOW_FREQUENCY = Pattern.compile(
-         "(?i)\\b(q\\d+h?|bid|tid|qid|od|bd|tds|daily|prn|as\\s+needed|"
-               + "every\\s+\\d+\\s+hours?|/24|/12|/8)\\b" );
+         "(?i)\\b(" + FREQUENCY_WORDS + ")\\b" );
+
+   static private final Pattern COUNT_PER_DAY_WHOLE = Pattern.compile(
+         "(?i)^(?:" + COUNT_PER_DAY + ")$" );
 
    /** Drug NER often mis-parses "every 8 hours" as "3.0 day". */
    static private final Pattern BROKEN_DAY_FREQ = Pattern.compile(
          "(?i)^\\d+(?:\\.\\d+)?\\s*days?$" );
 
+   /** Drug NER puts a count of its own ahead of the frequency: "2.0 BID", "2.0 q12h". */
+   static private final Pattern NER_FREQ_COUNT = Pattern.compile( "^\\d+(?:\\.\\d+)?\\s*" );
+
+   /** A time unit Drug NER kept without its count ("h", "hr") says nothing about how often. */
+   static private final Pattern NER_FREQ_FRAGMENT = Pattern.compile(
+         "(?i)^(?:h|hrs?|hours?|mins?|minutes?|days?|weeks?|months?)$" );
+
    static private final Pattern EVERY_HOURS = Pattern.compile(
-         "(?i)\\bevery\\s+(\\d+)\\s+hours?\\b" );
+         "(?i)\\bevery\\s+(\\d+)\\s+(?:hours?|hrs?)\\b" );
+
+   /** A route said just ahead of the drug: "IV paracetamol", "oral vancomycin". */
+   static private final Pattern ROUTE_AT_END = Pattern.compile(
+         "(?i)(?<![\\w.])(" + ROUTE_WORDS + ")\\s*$" );
+
+   /** A dose said just ahead of the drug: "40 mg of furosemide", "plus 700 ml normal saline". */
+   static private final Pattern QUANTITY_AT_END = Pattern.compile(
+         "(?i)(?<![\\w.,/])((" + NUMBER + ")(?:\\s*(?:-|–|to)\\s*(" + NUMBER + "))?\\s*("
+               + DOSE_UNIT + ")" + DOSE_RATE + "{0,3})(\\s+of)?\\s*$" );
+
+   static private final Pattern FREQUENCY_AT_END = Pattern.compile(
+         "(?i)\\b(?:" + FREQUENCY_WORDS + ")\\s*$" );
+
+   static private final Pattern NUMBER_AT_END = Pattern.compile( "\\d\\s*$" );
+
+   /**
+    * What may stand to the left of a dose that belongs to the drug after it: the start of a
+    * clause, or a word that cannot itself take a dose.
+    */
+   static private final Pattern LEFT_ANCHOR = Pattern.compile(
+         "(?i)(?:[,;:(.!?\\n]|\\b(?:and|plus|then|or|but|with|on|gave|give|given|giving|start|started"
+               + "|continue|continued|receive|received|receiving|add|added|administer|administered"
+               + "|got|had))\\s*$" );
 
    static private final Set<String> JUNK_MED_TEXTS = setOf(
          "oral", "gel", "tablet", "tablets", "capsule", "capsules", "infusion",
@@ -258,8 +346,11 @@ final public class HandoverAssembler {
 
       // Medications by class / section — also keep full list under access.medications
       final List<HandoverDocument.MedDto> allMeds = new ArrayList<>();
-      for ( MedicationMention med : JCasUtil.select( jCas, MedicationMention.class ) ) {
-         final HandoverDocument.MedDto medDto = toMed( med, segments, docText, sentences );
+      final List<MedicationMention> medMentions
+            = new ArrayList<>( JCasUtil.select( jCas, MedicationMention.class ) );
+      for ( MedicationMention med : medMentions ) {
+         final HandoverDocument.MedDto medDto
+               = toMed( med, segments, docText, sentences, previousMentionEnd( med, medMentions ) );
          if ( isJunkMedication( medDto ) || !keepMedication( medDto ) ) {
             continue;
          }
@@ -907,7 +998,8 @@ final public class HandoverAssembler {
    static private HandoverDocument.MedDto toMed( final MedicationMention med,
                                                  final List<Segment> segments,
                                                  final String docText,
-                                                 final SentenceIndex sentences ) {
+                                                 final SentenceIndex sentences,
+                                                 final int previousDrugEnd ) {
       final HandoverDocument.MedDto dto = new HandoverDocument.MedDto();
       dto.text = med.getCoveredText();
       dto.begin = med.getBegin();
@@ -929,37 +1021,87 @@ final public class HandoverAssembler {
       dto.strength = extractStrength( med );
       dto.frequency = extractFrequency( med );
       dto.route = extractRoute( med );
-      final String after = truncateAtNextDrug(
-            windowAfter( docText, med.getEnd(), MED_ATTR_WINDOW + 24 ), dto.text );
-      // Drop Dose/Freq that Drug NER attached from a later drug in the same sentence.
-      if ( !isBlank( dto.dose ) && !windowContainsDose( after, dto.dose ) ) {
+      int floor = 0;
+      int ceiling = docText == null ? 0 : docText.length();
+      if ( sentences != null ) {
+         dto.sentenceId = sentences.idFor( dto.begin, dto.end );
+         final HandoverDocument.SentenceDto sentence = sentences.get( dto.sentenceId );
+         if ( sentence != null ) {
+            floor = sentence.begin;
+            ceiling = sentence.end;
+         }
+      }
+      attachSpokenAttributes( dto, docText, floor, ceiling, previousDrugEnd );
+      dto.drugClass = classifyDrug( med.getCoveredText(), dto.preferredText );
+      return dto;
+   }
+
+   /** Where the nearest medication mention ahead of {@code med} ends, or -1. */
+   static private int previousMentionEnd( final MedicationMention med, final Collection<MedicationMention> all ) {
+      int end = -1;
+      for ( MedicationMention other : all ) {
+         if ( other != med && other.getEnd() <= med.getBegin() && other.getEnd() > end ) {
+            end = other.getEnd();
+         }
+      }
+      return end;
+   }
+
+   /**
+    * Settle a medication's dose, strength, route and frequency on what was said about that drug.
+    * <p>
+    * Drug NER attaches modifiers by sentence and keeps no offsets for them, so its values can
+    * come from any item in the sentence: "give pantoprazole BID, start IV fluid D5LR at 100 ml
+    * per hour" comes back as pantoprazole 100, IV. Each value therefore has to be found in the
+    * drug's own phrase — the words after the name up to the end of that item
+    * ({@link #ownPhraseAfter}), or a route / dose said just ahead of it ({@code readAhead}).
+    * A value with no such evidence is dropped: a blank field is filled at review, a value moved
+    * from another item is a wrong clinical value that looks right.
+    * </p>
+    *
+    * @param dto             begin / end / text set, and Drug NER's values in dose / strength /
+    *                        frequency / route
+    * @param floor           where the drug's sentence begins
+    * @param ceiling         where the drug's sentence ends
+    * @param previousDrugEnd where the nearest medication mention ahead of this one ends, or -1
+    */
+   static void attachSpokenAttributes( final HandoverDocument.MedDto dto, final String docText,
+                                       final int floor, final int ceiling, final int previousDrugEnd ) {
+      if ( dto == null || docText == null ) {
+         return;
+      }
+      final String after = ownPhraseAfter( docText, dto.end, ceiling, dto.text );
+      final SpokenAhead ahead = readAhead( docText, dto.begin, floor, previousDrugEnd );
+      final SpokenQuantity quantity = firstQuantity( after );
+      // The first quantity after the name is the dose; one said ahead of it counts only without.
+      final SpokenQuantity said = quantity != null ? quantity : ahead.quantity;
+      if ( !saysNumber( dto.dose, said, after ) ) {
          dto.dose = null;
       }
-      if ( isBlank( dto.dose ) || isBlank( dto.frequency ) || isBlank( dto.route ) ) {
-         fillMedAttributesFromWindow( dto, after );
+      if ( !saysStrength( dto.strength, said, after ) ) {
+         dto.strength = null;
       }
+      // As said, with its unit: Drug NER keeps "30 ml" as a bare "30".
+      if ( said != null && said.text != null ) {
+         dto.dose = said.text;
+      }
+      final String nerFrequency = dto.frequency;
+      dto.frequency = null;
+      dto.route = null;
+      fillMedAttributesFromWindow( dto, after );
       // Prefer explicit "every N hours" over Drug NER day counts.
       preferEveryHoursFrequency( dto, after );
+      // A frequency only Drug NER knows ("weekly") stands when the drug's own words hold it.
+      if ( isBlank( dto.frequency ) && saidAsWord( after, nerFrequency ) ) {
+         dto.frequency = nerFrequency;
+      }
       if ( isBlank( dto.route ) ) {
-         fillMedAttributesFromBeforeWindow( dto, windowBefore( docText, med.getBegin(), MED_ATTR_WINDOW_BEFORE ) );
+         dto.route = ahead.route;
       }
       inferRouteFromMedText( dto );
       if ( isBlank( dto.dose ) && !isBlank( dto.strength ) ) {
          dto.dose = dto.strength.trim();
       }
-      // Fluid rates like "80 ml per hour" are not mg doses — keep as dose text if still blank.
-      if ( isBlank( dto.dose ) && "fluid".equals( classifyDrug( med.getCoveredText(), dto.preferredText ) ) ) {
-         final Matcher rate = Pattern.compile(
-               "(?i)(\\d+(?:\\.\\d+)?\\s*ml(?:\\s*/\\s*h|\\s*per\\s*hour)?)" ).matcher( after );
-         if ( rate.find() ) {
-            dto.dose = rate.group( 1 ).replaceAll( "\\s+", " " ).trim();
-         }
-      }
-      dto.drugClass = classifyDrug( med.getCoveredText(), dto.preferredText );
-      if ( sentences != null ) {
-         dto.sentenceId = sentences.idFor( dto.begin, dto.end );
-      }
-      return dto;
    }
 
    static void preferEveryHoursFrequency( final HandoverDocument.MedDto dto, final String window ) {
@@ -972,15 +1114,150 @@ final public class HandoverAssembler {
       }
    }
 
-   static private boolean windowContainsDose( final String window, final String dose ) {
-      if ( isBlank( window ) || isBlank( dose ) ) {
+   /**
+    * The words after a drug's name that are about that drug: up to the end of its sentence, a
+    * full stop, comma, joining word or the next drug — and no further than a second quantity,
+    * which is the next item starting whether or not anything marks it ("fentanyl 100 mcg per
+    * hour levetiracetam 500 mg BID").
+    */
+   static String ownPhraseAfter( final String docText, final int medEnd, final int ceiling,
+                                 final String currentDrug ) {
+      if ( docText == null || medEnd < 0 || medEnd >= docText.length() ) {
+         return "";
+      }
+      final int sentenceEnd = Math.max( medEnd, Math.min( docText.length(), ceiling ) );
+      int stop = Math.min( sentenceEnd, medEnd + MED_ATTR_WINDOW + 24 );
+      // A window that stops short of the sentence must not end inside a word or number:
+      // "…at 10" of "at 100 ml" is not a dose.
+      while ( stop < sentenceEnd && stop > medEnd
+            && !Character.isWhitespace( docText.charAt( stop ) )
+            && !Character.isWhitespace( docText.charAt( stop - 1 ) ) ) {
+         stop--;
+      }
+      String phrase = docText.substring( medEnd, stop );
+      final Matcher brk = PHRASE_BREAK.matcher( phrase );
+      if ( brk.find() ) {
+         phrase = phrase.substring( 0, brk.start() );
+      }
+      phrase = truncateAtNextDrug( phrase, currentDrug );
+      final SpokenQuantity first = nextQuantity( phrase, 0 );
+      if ( first != null ) {
+         final SpokenQuantity second = nextQuantity( phrase, first.end );
+         if ( second != null ) {
+            phrase = phrase.substring( 0, second.begin );
+         }
+      }
+      return phrase;
+   }
+
+   /** A quantity as it was said in a drug's own phrase. */
+   static private final class SpokenQuantity {
+      /** With its unit — "30 ml", "100 ml per hour" — or null for a bare number. */
+      private final String text;
+      private final String unit;
+      private final List<BigDecimal> numbers;
+      private final int begin;
+      private final int end;
+      /** "15 mg/L": a level, never a dose. */
+      private final boolean concentration;
+
+      private SpokenQuantity( final String text, final String unit, final List<BigDecimal> numbers,
+                              final int begin, final int end, final boolean concentration ) {
+         this.text = text;
+         this.unit = unit;
+         this.numbers = numbers;
+         this.begin = begin;
+         this.end = end;
+         this.concentration = concentration;
+      }
+   }
+
+   /** The first quantity in a drug's own phrase, or null when none was said as a dose. */
+   static private SpokenQuantity firstQuantity( final String phrase ) {
+      final SpokenQuantity first = nextQuantity( phrase, 0 );
+      return first == null || first.concentration ? null : first;
+   }
+
+   /** The next number at or after {@code from} that is said as a quantity, or null. */
+   static private SpokenQuantity nextQuantity( final String phrase, final int from ) {
+      if ( isBlank( phrase ) ) {
+         return null;
+      }
+      final Matcher m = QUANTITY.matcher( phrase );
+      int at = from;
+      while ( at < phrase.length() && m.find( at ) ) {
+         at = m.end();
+         final String tail = phrase.substring( m.end() );
+         final String unit = m.group( 3 );
+         if ( NOT_A_QUANTITY_BEFORE.matcher( phrase.substring( 0, m.start() ) ).find()
+               || ( unit == null && NOT_A_QUANTITY_AFTER.matcher( tail ).lookingAt() ) ) {
+            continue;
+         }
+         final List<BigDecimal> numbers = new ArrayList<>();
+         numbers.add( toNumber( m.group( 1 ) ) );
+         if ( m.group( 2 ) != null ) {
+            numbers.add( toNumber( m.group( 2 ) ) );
+         }
+         return new SpokenQuantity( unit == null ? null : squish( m.group() ), unit, numbers,
+               m.start(), m.end(), unit != null && CONCENTRATION_AFTER.matcher( tail ).lookingAt() );
+      }
+      return null;
+   }
+
+   static private BigDecimal toNumber( final String text ) {
+      return new BigDecimal( text.replace( ",", "" ) );
+   }
+
+   static private String squish( final String text ) {
+      return text.replaceAll( "\\s+", " " ).trim();
+   }
+
+   /**
+    * Is the number in a Drug NER value the one said as this drug's quantity? A value written
+    * in words ("two units") has to be in the drug's own phrase, whole. Blank passes.
+    */
+   static private boolean saysNumber( final String value, final SpokenQuantity said, final String phrase ) {
+      if ( isBlank( value ) ) {
+         return true;
+      }
+      final Matcher num = NUMBER_PATTERN.matcher( value );
+      if ( !num.find() ) {
+         return saidAsWord( phrase, squish( value ) );
+      }
+      if ( said == null ) {
          return false;
       }
-      final Matcher num = Pattern.compile( "(\\d+(?:\\.\\d+)?)" ).matcher( dose );
-      if ( !num.find() ) {
-         return window.toLowerCase( Locale.ROOT ).contains( dose.toLowerCase( Locale.ROOT ) );
+      final BigDecimal number = toNumber( num.group() );
+      for ( BigDecimal spoken : said.numbers ) {
+         if ( spoken.compareTo( number ) == 0 ) {
+            return true;
+         }
       }
-      return Pattern.compile( "(?i)\\b" + Pattern.quote( num.group( 1 ) ) + "\\b" ).matcher( window ).find();
+      return false;
+   }
+
+   /**
+    * Drug NER builds a strength from a number and a unit it finds separately — "enoxaparin
+    * 40 mg SC paracetamol 1 g" comes back as enoxaparin "40 g" — so the unit has to be the
+    * one said with that number as well.
+    */
+   static private boolean saysStrength( final String strength, final SpokenQuantity said, final String phrase ) {
+      if ( !saysNumber( strength, said, phrase ) ) {
+         return false;
+      }
+      if ( isBlank( strength ) || said == null || said.unit == null ) {
+         return true;
+      }
+      final String unit = strength.trim().replaceFirst( "^[\\d.,\\s]+", "" );
+      return unit.isEmpty() || unit.equalsIgnoreCase( said.unit );
+   }
+
+   static private boolean saidAsWord( final String phrase, final String word ) {
+      if ( isBlank( phrase ) || isBlank( word ) ) {
+         return false;
+      }
+      return Pattern.compile( "(?i)(?<!\\w)" + Pattern.quote( word.trim() ) + "(?!\\w)" )
+                    .matcher( squish( phrase ) ).find();
    }
 
    /**
@@ -1047,9 +1324,11 @@ final public class HandoverAssembler {
          return;
       }
       if ( isBlank( dto.dose ) ) {
-         final Matcher doseMatcher = WINDOW_DOSE.matcher( window );
-         if ( doseMatcher.find() ) {
-            dto.dose = doseMatcher.group( 1 ).replaceAll( "\\s+", " " ).trim();
+         // The first quantity, not the first one that happens to carry a unit: in
+         // "2 to 4 mg" or "30 ml … 300 ml" a later number is not this drug's dose.
+         final SpokenQuantity quantity = firstQuantity( window );
+         if ( quantity != null && quantity.text != null ) {
+            dto.dose = quantity.text;
          }
       }
       if ( isBlank( dto.route ) ) {
@@ -1061,24 +1340,7 @@ final public class HandoverAssembler {
       if ( isBlank( dto.frequency ) ) {
          final Matcher freqMatcher = WINDOW_FREQUENCY.matcher( window );
          if ( freqMatcher.find() ) {
-            String freq = freqMatcher.group( 1 ).replaceAll( "\\s+", " " ).trim();
-            if ( freq.equalsIgnoreCase( "as needed" ) ) {
-               freq = "PRN";
-            } else if ( freq.equalsIgnoreCase( "prn" ) ) {
-               freq = "PRN";
-            } else {
-               final Matcher every = Pattern.compile( "(?i)every\\s+(\\d+)\\s+hours?" ).matcher( freq );
-               if ( every.matches() ) {
-                  freq = "q" + every.group( 1 ) + "h";
-               } else if ( !freq.startsWith( "/" ) ) {
-                  if ( freq.equalsIgnoreCase( "daily" ) ) {
-                     freq = "daily";
-                  } else {
-                     freq = freq.toLowerCase( Locale.ROOT );
-                  }
-               }
-            }
-            dto.frequency = freq;
+            dto.frequency = canonicalFrequency( freqMatcher.group( 1 ) );
          }
       }
    }
@@ -1096,47 +1358,219 @@ final public class HandoverAssembler {
    }
 
    /**
-    * Parse route from text immediately before a medication mention (e.g. oral vancomycin).
+    * Parse a route or dose from text immediately before a medication mention (e.g. oral
+    * vancomycin, 40 mg of furosemide). Only fills blank fields.
     */
    static void fillMedAttributesFromBeforeWindow( final HandoverDocument.MedDto dto, final String window ) {
-      if ( dto == null || isBlank( window ) || !isBlank( dto.route ) ) {
+      if ( dto == null || isBlank( window ) ) {
          return;
       }
-      final Matcher routeMatcher = WINDOW_ROUTE.matcher( window );
+      final SpokenAhead ahead = readAhead( window, false );
+      if ( isBlank( dto.route ) ) {
+         dto.route = ahead.route;
+      }
+      if ( isBlank( dto.dose ) && ahead.quantity != null ) {
+         dto.dose = ahead.quantity.text;
+      }
+   }
+
+   /** What was said about a drug just ahead of its name. */
+   static private final class SpokenAhead {
+      static private final SpokenAhead NONE = new SpokenAhead( null, null, 0 );
+
+      private final String route;
+      private final SpokenQuantity quantity;
+      /** Where in the window these words begin. */
+      private final int begin;
+
+      private SpokenAhead( final String route, final SpokenQuantity quantity, final int begin ) {
+         this.route = route;
+         this.quantity = quantity;
+         this.begin = begin;
+      }
+   }
+
+   /**
+    * The route / dose said just ahead of the drug at {@code medBegin}, read no further back
+    * than its sentence, and not when those words directly follow another medication —
+    * "levetiracetam IV paracetamol" gives paracetamol no route.
+    */
+   static private SpokenAhead readAhead( final String docText, final int medBegin, final int floor,
+                                         final int previousDrugEnd ) {
+      if ( docText == null || medBegin <= 0 || medBegin > docText.length() ) {
+         return SpokenAhead.NONE;
+      }
+      final int from = Math.min( medBegin, Math.max( Math.max( 0, floor ), medBegin - MED_ATTR_WINDOW_BEFORE ) );
+      final SpokenAhead ahead = readAhead( docText.substring( from, medBegin ), from <= floor );
+      if ( ahead == SpokenAhead.NONE ) {
+         return ahead;
+      }
+      final int saidFrom = from + ahead.begin;
+      if ( previousDrugEnd >= 0 && previousDrugEnd <= saidFrom
+            && docText.substring( previousDrugEnd, saidFrom ).trim().isEmpty() ) {
+         return SpokenAhead.NONE;
+      }
+      return ahead;
+   }
+
+   /**
+    * Leftwards from the name: routes and at most one dose, touching the name and each other.
+    * Nothing is taken when what stands to their left shows they are the tail of the item
+    * before — its frequency, its dose, a bare number, its name — or, for a dose, when nothing
+    * ties it to this drug ("of", or a word that starts a clause).
+    *
+    * @param clauseStart the window begins where the sentence does
+    */
+   static private SpokenAhead readAhead( final String window, final boolean clauseStart ) {
+      String head = window == null ? "" : window;
       String route = null;
-      while ( routeMatcher.find() ) {
-         route = routeMatcher.group( 1 );
+      SpokenQuantity quantity = null;
+      boolean bound = false;
+      while ( true ) {
+         final Matcher routeMatcher = ROUTE_AT_END.matcher( head );
+         if ( routeMatcher.find() ) {
+            if ( route == null ) {
+               route = normalizeRoute( routeMatcher.group( 1 ) );
+            }
+            head = head.substring( 0, routeMatcher.start() );
+            continue;
+         }
+         final Matcher doseMatcher = QUANTITY_AT_END.matcher( head );
+         if ( quantity == null && doseMatcher.find() ) {
+            final List<BigDecimal> numbers = new ArrayList<>();
+            numbers.add( toNumber( doseMatcher.group( 2 ) ) );
+            if ( doseMatcher.group( 3 ) != null ) {
+               numbers.add( toNumber( doseMatcher.group( 3 ) ) );
+            }
+            quantity = new SpokenQuantity( squish( doseMatcher.group( 1 ) ), doseMatcher.group( 4 ),
+                  numbers, doseMatcher.start(), doseMatcher.end(), false );
+            bound = doseMatcher.group( 5 ) != null;
+            head = head.substring( 0, doseMatcher.start() );
+            continue;
+         }
+         break;
       }
-      if ( route != null ) {
-         dto.route = normalizeRoute( route );
+      if ( route == null && quantity == null ) {
+         return SpokenAhead.NONE;
       }
+      if ( FREQUENCY_AT_END.matcher( head ).find() || NUMBER_AT_END.matcher( head ).find()
+            || endsWithDrugName( head ) ) {
+         return SpokenAhead.NONE;
+      }
+      if ( quantity != null && !bound
+            && !( head.trim().isEmpty() ? clauseStart : LEFT_ANCHOR.matcher( head ).find() ) ) {
+         return SpokenAhead.NONE;
+      }
+      return new SpokenAhead( route, quantity, head.length() );
+   }
+
+   static private boolean endsWithDrugName( final String text ) {
+      final String head = text.replaceFirst( "\\s+$", "" );
+      if ( head.isEmpty() ) {
+         return false;
+      }
+      for ( LexiconLoader.CodedEntry entry : DRUG_LEXICON ) {
+         final Matcher m = entry.pattern.matcher( head );
+         while ( m.find() ) {
+            if ( m.end() == head.length() ) {
+               return true;
+            }
+         }
+      }
+      return false;
    }
 
    static private String normalizeRoute( final String route ) {
       if ( route == null ) {
          return null;
       }
-      final String r = route.replaceAll( "\\s+", " " ).trim();
-      if ( r.equalsIgnoreCase( "oral" ) || r.equalsIgnoreCase( "by mouth" ) ) {
+      final String r = route.replaceAll( "\\s+", " " ).trim().toLowerCase( Locale.ROOT );
+      if ( r.startsWith( "oral" ) || r.equals( "by mouth" ) ) {
          return "PO";
+      }
+      if ( r.startsWith( "intravenous" ) ) {
+         return "IV";
+      }
+      if ( r.startsWith( "subcutaneous" ) ) {
+         return "SC";
+      }
+      if ( r.startsWith( "intramuscular" ) ) {
+         return "IM";
+      }
+      if ( r.startsWith( "sublingual" ) ) {
+         return "SL";
+      }
+      if ( r.startsWith( "rectal" ) ) {
+         return "PR";
       }
       return r.toUpperCase( Locale.ROOT );
    }
 
-   static private String windowAfter( final String docText, final int end, final int length ) {
-      if ( docText == null || end < 0 || end >= docText.length() ) {
-         return "";
+   /**
+    * A frequency in the handover's vocabulary: "every 8 hours" → q8h, "twice daily" → bid,
+    * "three times a day" → tid, "as needed" → PRN; anything else as said, in lower case.
+    */
+   static String canonicalFrequency( final String spoken ) {
+      final String said = squish( spoken );
+      if ( said.equalsIgnoreCase( "as needed" ) || said.equalsIgnoreCase( "prn" ) ) {
+         return "PRN";
       }
-      final int stop = Math.min( docText.length(), end + Math.max( 0, length ) );
-      return docText.substring( end, stop );
+      final Matcher every = EVERY_HOURS.matcher( said );
+      if ( every.matches() ) {
+         return "q" + every.group( 1 ) + "h";
+      }
+      if ( said.startsWith( "/" ) ) {
+         return said;
+      }
+      final String lower = said.toLowerCase( Locale.ROOT );
+      final Matcher count = COUNT_PER_DAY_WHOLE.matcher( lower );
+      if ( count.matches() ) {
+         switch ( count.group( 1 ) != null ? count.group( 1 ) : count.group( 2 ) ) {
+            case "once":
+            case "one":
+            case "1":
+               return "daily";
+            case "twice":
+            case "two":
+            case "2":
+               return "bid";
+            case "thrice":
+            case "three":
+            case "3":
+               return "tid";
+            case "four":
+            case "4":
+               return "qid";
+            default:
+               return lower;
+         }
+      }
+      return lower;
    }
 
-   static private String windowBefore( final String docText, final int begin, final int length ) {
-      if ( docText == null || begin <= 0 ) {
-         return "";
+   /**
+    * Drug NER's frequency in the handover's vocabulary, or null when it kept only a fragment:
+    * "2.0 BID" → bid, "day" → daily, "2.0 q12h" → q12h; "3.0 day", "h", "hr", "1.0" → null.
+    */
+   static String normalizeNerFrequency( final String raw ) {
+      if ( isBlank( raw ) ) {
+         return null;
       }
-      final int start = Math.max( 0, begin - Math.max( 0, length ) );
-      return docText.substring( start, begin );
+      final String trimmed = raw.trim();
+      if ( BROKEN_DAY_FREQ.matcher( trimmed ).matches() ) {
+         return null;
+      }
+      final String said = NER_FREQ_COUNT.matcher( trimmed ).replaceFirst( "" ).trim();
+      if ( said.isEmpty() ) {
+         return null;
+      }
+      if ( said.equalsIgnoreCase( "day" ) ) {
+         return "daily";
+      }
+      if ( NER_FREQ_FRAGMENT.matcher( said ).matches() ) {
+         return null;
+      }
+      return canonicalFrequency( said );
    }
 
    static private boolean isBlank( final String value ) {
@@ -1284,7 +1718,10 @@ final public class HandoverAssembler {
       return (s.getNumber() == null ? "" : s.getNumber()) + (s.getUnit() == null ? "" : " " + s.getUnit());
    }
 
-   /** CAS frequency — clears bogus Drug NER "N day" values. */
+   /**
+    * CAS frequency, normalised — shared with UmlsJsonFormatter (map.entities). Clears bogus
+    * Drug NER "N day" values and the fragments it leaves behind; see {@link #normalizeNerFrequency}.
+    */
    static public String extractFrequency( final MedicationMention med ) {
       final MedicationFrequencyModifier mod = med.getMedicationFrequency();
       if ( mod == null || !(mod.getNormalizedForm() instanceof MedicationFrequency) ) {
@@ -1293,14 +1730,7 @@ final public class HandoverAssembler {
       final MedicationFrequency f = (MedicationFrequency) mod.getNormalizedForm();
       final String raw = (f.getNumber() == null ? "" : f.getNumber())
             + (f.getUnit() == null ? "" : " " + f.getUnit());
-      if ( raw.isBlank() ) {
-         return null;
-      }
-      final String trimmed = raw.trim();
-      if ( BROKEN_DAY_FREQ.matcher( trimmed ).matches() ) {
-         return null;
-      }
-      return trimmed;
+      return normalizeNerFrequency( raw );
    }
 
    /** CAS route modifier value — shared with UmlsJsonFormatter (map.entities). */
