@@ -10,7 +10,12 @@ services:
       dockerfile: ctakes-tiny-rest-war/docker/Dockerfile
     ports:
       # Default matches smart-handover's CTAKES_URL (host.docker.internal:8081).
-      - "${CTAKES_HOST_PORT:-8081}:8080"
+      # Never on 0.0.0.0: Docker's published ports go around ufw, so that was
+      # open to the internet. On the VPS the deploy sets CTAKES_BIND_ADDRESS to
+      # the docker0 bridge (172.17.0.1), which is where host.docker.internal
+      # (host-gateway) points from smart-handover's containers. Locally,
+      # 127.0.0.1 is enough (Docker Desktop's host.docker.internal reaches it).
+      - "${CTAKES_BIND_ADDRESS:-127.0.0.1}:${CTAKES_HOST_PORT:-8081}:8080"
     volumes:
       # UMLS sno_rx_16ab dictionary, set up once with setup-dictionary-volume.sh.
       # Never rebuilt/re-pulled by a normal deploy.
@@ -19,11 +24,18 @@ services:
       CTAKES_REST_PIPER: TinyRestPipeline.prod.piper
       # Set your UTS API key in the shell or a .env file (do not commit the key):
       #   export CTAKES_UMLS_APIKEY=your_uts_api_key
+      # The heap was -Xmx6g on an 8 GB VPS shared with four other stacks, with no
+      # container limit: Java grows toward its ceiling and rarely hands memory
+      # back. It ran at ~2.0 GB resident (Nov 2026). 2g of heap + the container
+      # cap below; raise both in .env (CTAKES_HEAP, CTAKES_MEM_LIMIT) if the
+      # dictionary load fails or the smoke test times out.
       JAVA_OPTS: >-
-        -Xmx6g
+        -Xmx${CTAKES_HEAP:-2g}
         -Djava.awt.headless=true
         -Dctakes.rest.piper=TinyRestPipeline.prod.piper
         -Dctakes.umls_apikey=${CTAKES_UMLS_APIKEY}
+    # Heap + metaspace, threads and Tomcat's own: ~700 MB above the heap.
+    mem_limit: ${CTAKES_MEM_LIMIT:-2816m}
     restart: unless-stopped
 
 volumes:

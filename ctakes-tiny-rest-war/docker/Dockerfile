@@ -8,7 +8,7 @@ ENV CATALINA_HOME=/opt/tomcat
 ENV PATH="${CATALINA_HOME}/bin:${PATH}"
 # Prod piper only. Pass UMLS key at runtime: -e CTAKES_UMLS_APIKEY=...
 ENV CTAKES_REST_PIPER=TinyRestPipeline.prod.piper
-ENV JAVA_OPTS="-Xmx6g -Djava.awt.headless=true -Dctakes.rest.piper=TinyRestPipeline.prod.piper"
+ENV JAVA_OPTS="-Xmx2g -Djava.awt.headless=true -Dctakes.rest.piper=TinyRestPipeline.prod.piper"
 
 # AL2023 already has curl-minimal; installing full curl conflicts with it.
 RUN yum install -y ca-certificates tar gzip unzip \

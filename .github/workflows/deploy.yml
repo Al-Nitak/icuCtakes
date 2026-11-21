@@ -181,6 +181,15 @@ jobs:
           sed -i '/^IMAGE_TAG=/d' .env
           echo "IMAGE_TAG=$IMAGE_TAG" >> .env
 
+          # The port is published on the docker0 bridge only (docker-compose.yml):
+          # smart-handover reaches it through host.docker.internal, the internet
+          # does not. Written once; a value already in .env is kept.
+          if ! grep -q '^CTAKES_BIND_ADDRESS=.' .env; then
+            bridge=$(ip -4 -o addr show docker0 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -1 || true)
+            [[ -n "$bridge" ]] || { echo "No docker0 address: set CTAKES_BIND_ADDRESS in $DEPLOY_PATH/.env" >&2; exit 1; }
+            echo "CTAKES_BIND_ADDRESS=$bridge" >> .env
+          fi
+
           # Anything else holding our host port (the hand-started container this
           # deploy replaces) is stopped and told not to come back on reboot.
           # `|| true`: under set -e a no-match grep in an assignment aborts the script.
@@ -204,12 +213,13 @@ jobs:
           set -u
           cd "$DEPLOY_PATH"
           port=$(grep -s '^CTAKES_HOST_PORT=' .env | cut -d= -f2- || true); port="${port:-8081}"
+          addr=$(grep -s '^CTAKES_BIND_ADDRESS=' .env | cut -d= -f2- || true); addr="${addr:-127.0.0.1}"
           code=000
           for i in $(seq 1 36); do
             code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 \
-                     -X POST "http://127.0.0.1:${port}/service/process?format=cui" -d "test" || true)
+                     -X POST "http://${addr}:${port}/service/process?format=cui" -d "test" || true)
             if [[ "$code" == 200 ]]; then
-              echo "200  /service/process on :${port} after ~$((i * 10))s"
+              echo "200  /service/process on ${addr}:${port} after ~$((i * 10))s"
               exit 0
             fi
             sleep 10
